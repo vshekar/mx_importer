@@ -34,10 +34,11 @@ class ControlMain(QtWidgets.QMainWindow):
         filename, _ = QtWidgets.QFileDialog().getOpenFileName(
             self, "Import file", filter="Excel (*.xls *.xlsx)"
         )
-        data = pd.read_excel(filename)
-        self.model = PandasModel(data)
-        self.tableView.setModel(self.model)
-        self.validateExcel()
+        if filename:
+            data = pd.read_excel(filename)
+            self.model = PandasModel(data)
+            self.tableView.setModel(self.model)
+            self.validateExcel()
 
     def validateExcel(self):
         if not isinstance(self.model, PandasModel):
