@@ -6,6 +6,7 @@ import sys
 import pandas as pd
 import json
 from pandas_model import PandasModel
+from db_lib import DBConnection
 
 
 class ControlMain(QtWidgets.QMainWindow):
@@ -16,6 +17,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.setCentralWidget(self.tableView)
         self._createActions()
         self._createMenuBar()
+        self.owner = "vshekar1"
 
     def _createActions(self):
         self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)
@@ -24,6 +26,8 @@ class ControlMain(QtWidgets.QMainWindow):
             "&Validate imported Excel file", self
         )
         self.validateExcelAction.triggered.connect(self.validateExcel)
+        self.submitPuckDataAction = QtWidgets.QAction("&Submit Puck data", self)
+        self.submitPuckDataAction.triggered.connect(self.submitPuckData)
         self.exitAction = QtWidgets.QAction("&Exit", self)
 
     def importExcel(self):
@@ -36,16 +40,52 @@ class ControlMain(QtWidgets.QMainWindow):
         self.validateExcel()
 
     def validateExcel(self):
-        if isinstance(self.model, PandasModel):
-            try:
-                self.model.preprocessData()
-                self.model.validateData()
-            except TypeError as e:
-                self.msg = QtWidgets.QMessageBox()
-                self.msg.setText(str(e))
-                self.msg.setModal(True)
-                self.msg.setWindowTitle("Error")
-                self.msg.show()
+        if not isinstance(self.model, PandasModel):
+            return
+        try:
+            self.model.preprocessData()
+            self.model.validateData()
+
+        except TypeError as e:
+            self.msg = QtWidgets.QMessageBox()
+            self.msg.setText(str(e))
+            self.msg.setModal(True)
+            self.msg.setWindowTitle("Error")
+            self.msg.show()
+
+    def submitPuckData(self):
+        self.currentPucks = set()
+        if not self.model.validData:
+            return
+        dbConnection = DBConnection()
+        for row in self.model.rows():
+            # Check if puck exists, otherwise create one
+            puckData = dbConnection.getContainerbyName(row["puckName"], self.owner)
+            puckID = puckData["uid"] if "uid" in puckData else ""
+            if not puckID:
+                puckID = dbConnection.createContainer(
+                    row["puckName"], 16, self.owner, "16_pin_puck"
+                )
+
+            # Create sample
+            sampleName: str = row["sampleName"]
+            model = row["model"]
+            seq = row["sequence"]
+            propNum = row["proposalNum"]
+            sampleID = dbConnection.createSample(
+                sampleName,
+                self.owner,
+                "pin",
+                model=model,
+                sequence=seq,
+                proposalID=propNum,
+            )
+            if puckID not in self.currentPucks:
+                dbConnection.emptyContainer(puckID)
+                self.currentPucks.add(puckID)
+            dbConnection.insertIntoContainer(
+                puckID, self.owner, row["position"], sampleID
+            )
 
     def _createMenuBar(self):
         menuBar = self.menuBar()

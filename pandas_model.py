@@ -11,6 +11,7 @@ class PandasModel(QAbstractTableModel):
 
     def __init__(self, dataframe: pd.DataFrame, parent=None):
         QAbstractTableModel.__init__(self, parent)
+        self.validData = False
         self._dataframe = dataframe
         self.colors = {}
 
@@ -49,6 +50,10 @@ class PandasModel(QAbstractTableModel):
                 return color
 
         return None
+
+    def rows(self):
+        for i, row in self._dataframe.iterrows():
+            yield row
 
     def flags(self, index):
         return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
@@ -105,6 +110,7 @@ class PandasModel(QAbstractTableModel):
             raise TypeError(
                 "Invalid proposal numbers, either are not unique or not all of them are integers"
             )
+        self.validData = True
 
     def preprocessData(self):
         required_columns = set(
