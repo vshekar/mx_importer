@@ -122,10 +122,11 @@ class PandasModel(QAbstractTableModel):
             )
         # Remove all whitespaces from string columns
         for col in required_columns:
+            self._dataframe[col] = self._dataframe[col].astype('string')
             if col != "sampleName":
-                self._dataframe[col].str.replace(r"\s+", "")
+                self._dataframe[col].str.replace(r"\s+", "", regex=True)
             else:
-                self._dataframe[col].str.replace(r"\.|\s)+", "")
+                self._dataframe[col].str.replace(r"(\.|\s)+", "", regex=True)
 
     def _checkProposalNumbers(self, data: pd.DataFrame):
         # if not pd.api.types.is_integer_dtype(data["proposalNum"]):
