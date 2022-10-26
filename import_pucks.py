@@ -17,6 +17,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.setCentralWidget(self.tableView)
         self._createActions()
         self._createMenuBar()
+        self.model = None
         self.owner = "vshekar1"
 
     def _createActions(self):
@@ -29,13 +30,18 @@ class ControlMain(QtWidgets.QMainWindow):
         self.submitPuckDataAction = QtWidgets.QAction("&Submit Puck data", self)
         self.submitPuckDataAction.triggered.connect(self.submitPuckData)
         self.exitAction = QtWidgets.QAction("&Exit", self)
+        self.exitAction.triggered.connect(QtWidgets.QApplication.quit)
 
     def importExcel(self):
         filename, _ = QtWidgets.QFileDialog().getOpenFileName(
             self, "Import file", filter="Excel (*.xls *.xlsx)"
         )
         if filename:
-            data = pd.read_excel(filename)
+            if filename.endswith('xls'):
+                engine = 'xlrd'
+            else:
+                engine = 'openpyxl'
+            data = pd.read_excel(filename, engine=engine)
             self.model = PandasModel(data)
             self.tableView.setModel(self.model)
             self.validateExcel()
