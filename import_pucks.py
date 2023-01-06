@@ -5,8 +5,8 @@ from qtpy.QtCore import Qt
 import sys
 import pandas as pd
 import json
-from pandas_model import PandasModel
-from db_lib import DBConnection
+from utils.pandas_model import PandasModel
+from utils.db_lib import DBConnection
 
 
 class ControlMain(QtWidgets.QMainWindow):
