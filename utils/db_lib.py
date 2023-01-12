@@ -1,6 +1,7 @@
 import os
 from typing import Dict, Any
 import time
+import getpass
 import amostra.client.commands as acc
 import conftrak.client.commands as ccc
 
@@ -9,7 +10,7 @@ import conftrak.exceptions
 
 
 class DBConnection:
-    def __init__(self):
+    def __init__(self, beamline_id):
         main_server = os.environ["MONGODB_HOST"]
 
         services_config = {
@@ -25,33 +26,34 @@ class DBConnection:
         self.configuration_ref = ccc.ConfigurationReference(
             **services_config["conftrak"]
         )
+        self.beamline_id = beamline_id
+        self.owner = getpass.getuser()
 
-    def getContainerbyName(self, container_name: str, owner: str):
-        containers = list(self.container_ref.find(owner=owner, name=container_name))
-        return containers[0] if containers else {}
-
-    def getContainerByID(self, id):
-        containers = list(self.container_ref.find(uid=id))
-        return containers[0]
+    def getContainer(self, filter=None):
+        containers = {}
+        if filter:
+            containers = list(self.container_ref.find(**filter))
+            containers =  containers[0] if containers else {}
+        return containers
 
     def createContainer(
-        self, name: str, capacity: int, owner: str, kind: str, **kwargs
+        self, name: str, capacity: int, kind: str, **kwargs
     ):
         if capacity is not None:
             kwargs["content"] = [""] * capacity
         uid = self.container_ref.create(
-            name=name, owner=owner, kind=kind, modified_time=time.time(), **kwargs
+            name=name, owner=self.owner, kind=kind, modified_time=time.time(), **kwargs
         )
         return uid
 
     def createSample(
-        self, sample_name: str, owner: str, kind: str, proposalID: int, **kwargs
+        self, sample_name: str, kind: str, proposalID: int, **kwargs
     ):
         if "request_count" not in kwargs:
             kwargs["request_count"] = 0
 
         uid = self.sample_ref.create(
-            name=sample_name, owner=owner, kind=kind, proposalID=proposalID, **kwargs
+            name=sample_name, owner=self.owner, kind=kind, proposalID=proposalID, **kwargs
         )
         return uid
 
@@ -68,17 +70,58 @@ class DBConnection:
         return cont
 
     def emptyContainer(self, id):
-        c = self.getContainerByID(id)
+        c = self.getContainer(filter={'uid':id})
         if c is not None:
             c["content"] = [""] * len(c["content"])
             self.updateContainer(c)
             return True
         return False
 
-    def insertIntoContainer(self, container_name, owner, position, itemID):
-        c = self.getContainerbyName(container_name, owner)
-        if c:
-            c["content"][position - 1] = itemID  # most people don't zero index things
-            self.updateContainer(c)
+    def insertIntoContainer(self, dewar_name, position, puck_name):
+        dewar = self.getContainer(filter={'owner':self.owner, 'name': dewar_name})
+        puck = self.getContainer(filter={'owner':self.owner, 'kind': '16_puck_pin', 'name': puck_name})
+        if dewar:
+            dewar["content"][position] = puck['uid']
+            self.updateContainer(dewar)
             return True
         return False
+
+    def getAllPucks(self):
+        filters={"kind": "16_puck_pin","owner":self.owner}
+        return list(self.container_ref.find(**filters))
+
+    def getBLConfig(self, paramName):
+        return self.beamlineInfo(paramName)["val"]
+
+    def beamlineInfo(self, info_name, info_dict=None):
+        """
+        to write info:  beamlineInfo('x25', 'det', info_dict={'vendor':'adsc','model':'q315r'})
+        to fetch info:  info = beamlineInfo('x25', 'det')
+        """
+
+        # if it exists it's a query or update
+        try:
+            bli = list(self.configuration_ref.find(key='beamline_info', beamline_id=self.beamline_id, info_name=info_name))[0] #hugo put the [0]
+
+            if info_dict is None:  # this is a query
+                return bli['info']
+
+            # else it's an update
+            bli_uid = bli.pop('uid', '')
+            self.configuration_ref.update({'uid': bli_uid},{'info':info_dict})
+
+        # else it's a create
+        except conftrak.exceptions.ConfTrakNotFoundException:
+            # edge case for 1st create in fresh database
+            # in which case this as actually a query
+            if info_dict is None:
+                return {}
+
+            # normal create
+            data = {'key': 'beamline_info', 'info_name':info_name, 'info': info_dict}
+            uid = self.configuration_ref.create(self.beamline_id,**data)
+
+
+    @property
+    def primary_dewar(self):
+        self.getBLConfig("primaryDewarName")
