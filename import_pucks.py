@@ -7,6 +7,7 @@ import pandas as pd
 import json
 from utils.pandas_model import PandasModel
 from utils.db_lib import DBConnection
+from utils.devices import Dewar
 
 
 class ControlMain(QtWidgets.QMainWindow):
@@ -18,7 +19,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self._createActions()
         self._createMenuBar()
         self.model = None
-        self.owner = "vshekar1"
 
     def _createActions(self):
         self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)
@@ -67,12 +67,7 @@ class ControlMain(QtWidgets.QMainWindow):
         dbConnection = DBConnection()
         for row in self.model.rows():
             # Check if puck exists, otherwise create one
-            puckData = dbConnection.getContainerbyName(row["puckName"], self.owner)
-            puckID = puckData["uid"] if "uid" in puckData else ""
-            if not puckID:
-                puckID = dbConnection.createContainer(
-                    row["puckName"], 16, self.owner, "16_pin_puck"
-                )
+            puckID = dbConnection.getOrCreateContainer(row['puckName'], 16, "16_pin_puck")
 
             # Create sample
             sampleName: str = row["sampleName"]
@@ -81,7 +76,6 @@ class ControlMain(QtWidgets.QMainWindow):
             propNum = row["proposalNum"]
             sampleID = dbConnection.createSample(
                 sampleName,
-                self.owner,
                 "pin",
                 model=model,
                 sequence=seq,
@@ -91,7 +85,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 dbConnection.emptyContainer(puckID)
                 self.currentPucks.add(puckID)
             dbConnection.insertIntoContainer(
-                puckID, self.owner, row["position"], sampleID
+                puckID, row["position"], sampleID
             )
 
     def _createMenuBar(self):

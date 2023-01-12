@@ -30,11 +30,11 @@ class DBConnection:
         self.owner = getpass.getuser()
 
     def getContainer(self, filter=None):
-        containers = {}
+        container = {}
         if filter:
             containers = list(self.container_ref.find(**filter))
-            containers =  containers[0] if containers else {}
-        return containers
+            container =  containers[0] if containers else {}
+        return container
 
     def createContainer(
         self, name: str, capacity: int, kind: str, **kwargs
@@ -46,16 +46,11 @@ class DBConnection:
         )
         return uid
 
-    def createSample(
-        self, sample_name: str, kind: str, proposalID: int, **kwargs
-    ):
-        if "request_count" not in kwargs:
-            kwargs["request_count"] = 0
-
-        uid = self.sample_ref.create(
-            name=sample_name, owner=self.owner, kind=kind, proposalID=proposalID, **kwargs
-        )
-        return uid
+    def getOrCreateContainer(self, name: str, capacity: int, kind: str, **kwargs):
+        container = self.getContainer(filter={'name': name, 'kind': kind})
+        if not container:
+            container = self.createContainer(name, capacity, kind, **kwargs)
+        return container
 
     def updateContainer(
         self, container: Dict[str, Any]
@@ -77,12 +72,13 @@ class DBConnection:
             return True
         return False
 
-    def insertIntoContainer(self, dewar_name, position, puck_name):
-        dewar = self.getContainer(filter={'owner':self.owner, 'name': dewar_name})
-        puck = self.getContainer(filter={'owner':self.owner, 'kind': '16_puck_pin', 'name': puck_name})
-        if dewar:
-            dewar["content"][position] = puck['uid']
-            self.updateContainer(dewar)
+    def insertIntoContainer(self, parent_uid, position, child_uid):
+        #dewar = self.getContainer(filter={'owner':self.owner, 'name': dewar_name})
+        #puck = self.getContainer(filter={'owner':self.owner, 'kind': '16_puck_pin', 'name': puck_name})
+        parent_container = self.getContainer(filter={'uid': parent_uid})
+        if parent_container:
+            parent_container["content"][position] = child_uid
+            self.updateContainer(parent_container)
             return True
         return False
 
@@ -124,4 +120,18 @@ class DBConnection:
 
     @property
     def primary_dewar(self):
-        self.getBLConfig("primaryDewarName")
+        return self.getBLConfig("primaryDewarName")
+
+    def getSample(self, filter):
+        samples = list(self.sample_ref.find(**filter))
+        if samples:
+            return samples[0]
+        return {}
+    
+    def createSample(self, sample_name, kind='pin', proposalID=None, **kwargs):
+        if 'request_count' not in kwargs:
+            kwargs['request_count'] = 0
+        return self.sample_ref.create(name=sample_name, 
+                                      owner=self.owner, kind=kind, 
+                                      proposalID=proposalID,
+                                      **kwargs)
