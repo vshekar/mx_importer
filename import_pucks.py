@@ -19,6 +19,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self._createActions()
         self._createMenuBar()
         self.model = None
+        self.dewar = Dewar(name='dewar')
 
     def _createActions(self):
         self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)

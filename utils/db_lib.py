@@ -10,7 +10,7 @@ import conftrak.exceptions
 
 
 class DBConnection:
-    def __init__(self, beamline_id):
+    def __init__(self, beamline_id='amx'):
         main_server = os.environ["MONGODB_HOST"]
 
         services_config = {
@@ -119,8 +119,12 @@ class DBConnection:
 
 
     @property
-    def primary_dewar(self):
+    def primary_dewar_name(self):
         return self.getBLConfig("primaryDewarName")
+    
+    @property
+    def primary_dewar_uid(self):
+        return self.getContainer(filter={'name': self.primary_dewar_name})
 
     def getSample(self, filter):
         samples = list(self.sample_ref.find(**filter))
