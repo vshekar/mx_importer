@@ -95,7 +95,7 @@ class PandasModel(QAbstractTableModel):
     def validateData(self):
         self.resetColors()
         if not self._matchMasterlist(self._dataframe):
-            raise TypeError("Pucks submitted do not match master list")
+            raise TypeError("Pucks submitted do not match master list. Blacklisted pucks in red and pucks not in whitelist are yellow")
 
         if not self._checkSampleNames(self._dataframe):
             raise TypeError(
@@ -164,12 +164,19 @@ class PandasModel(QAbstractTableModel):
         with open("masterlist.json", "r") as f:
             masterList = json.load(f)
         enteredPucks = set(data["puckName"])
-        missingPucks = enteredPucks - set(masterList["pucks"])
-        if missingPucks:
-            indices = []
-            column_index = data.columns.get_loc("puckName")
-            for puck in missingPucks:
-                indices.extend(data.index[data["puckName"] == puck].tolist())
-            self._changeCellColors(column_index, indices)
+        missingPucks = enteredPucks - set(masterList["whitelist"])
+        column_index = data.columns.get_loc("puckName")
+        indices = []
+        for puck in missingPucks:
+            indices.extend(data.index[data["puckName"] == puck].tolist())
+        self._changeCellColors(column_index, indices, color= QColor(Qt.yellow))
+        
+        disallowedPucks = enteredPucks.intersection(set(masterList['blacklist']))
+        indices = []
+        for puck in disallowedPucks:
+            indices.extend(data.index[data["puckName"] == puck].tolist())
+        self._changeCellColors(column_index, indices)
+        
+        if missingPucks or disallowedPucks:
             return False
         return True

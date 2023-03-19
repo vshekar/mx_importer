@@ -1,7 +1,10 @@
 {
-    "pucks": [
+    "whitelist": [
         "0000_NYX_01",
         "0000_NYX_02",
         "0000_NYX_03"
+    ],
+    "blacklist":[
+        "0000_NYX_04"
     ]
 }

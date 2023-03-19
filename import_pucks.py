@@ -19,7 +19,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self._createActions()
         self._createMenuBar()
         self.model = None
-        self.dewar = Dewar(name='dewar')
+        # self.dewar = Dewar('XF:lob5lab9-ES:AMX', name='XF:lob5lab9-ES:AMX')
 
     def _createActions(self):
         self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)
@@ -66,9 +66,13 @@ class ControlMain(QtWidgets.QMainWindow):
         if not self.model.validData:
             return
         dbConnection = DBConnection()
+        prevPuckName = None
+        puckID = None
         for row in self.model.rows():
             # Check if puck exists, otherwise create one
-            puckID = dbConnection.getOrCreateContainer(row['puckName'], 16, "16_pin_puck")
+            if row['puckName'] != prevPuckName:
+                puckID = dbConnection.getOrCreateContainer(row['puckName'], 16, "16_pin_puck")
+                prevPuckName = row['puckName']
 
             # Create sample
             sampleName: str = row["sampleName"]
@@ -96,6 +100,7 @@ class ControlMain(QtWidgets.QMainWindow):
         menuBar.addMenu(fileMenu)
         fileMenu.addAction(self.importExcelAction)
         fileMenu.addAction(self.validateExcelAction)
+        fileMenu.addAction(self.submitPuckDataAction)
         fileMenu.addAction(self.exitAction)
 
     def _createTableView(self):

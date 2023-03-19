@@ -10,7 +10,7 @@ import conftrak.exceptions
 
 
 class DBConnection:
-    def __init__(self, beamline_id='amx'):
+    def __init__(self, beamline_id='99id1'):
         main_server = os.environ["MONGODB_HOST"]
 
         services_config = {
@@ -81,6 +81,15 @@ class DBConnection:
             self.updateContainer(parent_container)
             return True
         return False
+    
+    def removeFromContainer(self, parent_uid, position, child_uid):
+        parent_container = self.getContainer(filter={'uid': parent_uid})
+        if parent_container:
+            if parent_container["content"][position] == child_uid:
+                parent_container["content"][position] = ""
+                self.updateContainer(parent_container)
+                return True
+        return False
 
     def getAllPucks(self):
         filters={"kind": "16_puck_pin","owner":self.owner}
@@ -97,7 +106,7 @@ class DBConnection:
 
         # if it exists it's a query or update
         try:
-            bli = list(self.configuration_ref.find(key='beamline_info', beamline_id=self.beamline_id, info_name=info_name))[0] #hugo put the [0]
+            bli = list(self.configuration_ref.find(key='beamline_info', beamline_id=self.beamline_id, info_name=info_name))[0]
 
             if info_dict is None:  # this is a query
                 return bli['info']
