@@ -19,6 +19,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self._createActions()
         self._createMenuBar()
         self.model = None
+        self.resize(QtWidgets.QDesktopWidget().availableGeometry().size() * 0.7)
         # self.dewar = Dewar('XF:lob5lab9-ES:AMX', name='XF:lob5lab9-ES:AMX')
 
     def _createActions(self):
@@ -45,6 +46,7 @@ class ControlMain(QtWidgets.QMainWindow):
             data = pd.read_excel(filename, engine=engine)
             self.model = PandasModel(data)
             self.tableView.setModel(self.model)
+            self.tableView.resizeColumnsToContents()
             self.validateExcel()
 
     def validateExcel(self):
@@ -53,13 +55,18 @@ class ControlMain(QtWidgets.QMainWindow):
         try:
             self.model.preprocessData()
             self.model.validateData()
+            self.showModalMessage('Success', 'Validated excel sucessfully')            
 
         except TypeError as e:
-            self.msg = QtWidgets.QMessageBox()
-            self.msg.setText(str(e))
-            self.msg.setModal(True)
-            self.msg.setWindowTitle("Error")
-            self.msg.show()
+            self.showModalMessage('Error', e)            
+
+    def showModalMessage(self, title, message):
+        self.msg = QtWidgets.QMessageBox()
+        self.msg.setText(str(message))
+        self.msg.setModal(True)
+        self.msg.setWindowTitle(title)
+        self.msg.show()
+
 
     def submitPuckData(self):
         self.currentPucks = set()
@@ -105,10 +112,10 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def _createTableView(self):
         view = QtWidgets.QTableView()
-        view.resize(800, 500)
+        view.resize(1200, 1200)
         view.horizontalHeader().setStretchLastSection(True)
         view.setAlternatingRowColors(True)
-        view.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
+        view.setSelectionMode(QtWidgets.QTableView.NoSelection)
         return view
 
 
