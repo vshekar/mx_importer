@@ -108,7 +108,7 @@ class PandasModel(QAbstractTableModel):
 
         if not self._checkProposalNumbers(self._dataframe):
             raise TypeError(
-                "Invalid proposal numbers, either are not unique or not all of them are integers"
+                "Invalid proposal numbers"
             )
         self.validData = True
 
@@ -129,14 +129,20 @@ class PandasModel(QAbstractTableModel):
                 self._dataframe[col].str.replace(r"(\.|\s)+", "", regex=True)
 
     def _checkProposalNumbers(self, data: pd.DataFrame):
-        # if not pd.api.types.is_integer_dtype(data["proposalNum"]):
-        #    return False
-        try:
-            data["proposalNum"] = data["proposalNum"].astype(int)
-        except:
+        # Remove all letters from proposal numbers
+        data['proposalNum'] = data['proposalNum'].astype('str')
+        data['proposalNum'] = data['proposalNum'].str.replace(r'\D', '')
+
+        # Check if proposal numbers have 6 digits
+        indices = data['proposalNum'][~data['propsalNum'].map(len).eq(6)].index
+
+        if len(indices) > 0:
+            self._changeCellColors('proposalNum', indices)
             return False
+
         if len(data["proposalNum"].unique()) > 1:
             return False
+        
         return True
 
     def _changeCellColors(self, column_index, row_indices, color=QColor(Qt.red)):
