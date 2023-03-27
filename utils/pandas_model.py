@@ -35,7 +35,7 @@ class PandasModel(QAbstractTableModel):
             return len(self._dataframe.columns)
         return 0
 
-    def data(self, index: QModelIndex, role=Qt.ItemDataRole) -> str | QColor | None:
+    def data(self, index: QModelIndex, role=Qt.ItemDataRole) -> "str | QColor | None":
         """Override method from QAbstractTableModel
 
         Return data cell from the pandas DataFrame
@@ -67,7 +67,7 @@ class PandasModel(QAbstractTableModel):
 
     def headerData(
         self, section: int, orientation: Qt.Orientation, role: Qt.ItemDataRole
-    ) -> str | None:
+    ) -> "str | None":
         """Override method from QAbstractTableModel
 
         Return dataframe index as vertical header data and columns as horizontal header data.
