@@ -44,6 +44,15 @@ class ControlMain(QtWidgets.QMainWindow):
             else:
                 engine = 'openpyxl'
             data = pd.read_excel(filename, engine=engine)
+            # Check if any row besides header row contains "puckname"
+            rows = (data.applymap(lambda x: str(x).lower() == 'puckname')).any(axis=1)
+            required_columns = set(
+                ["puckname", "samplename", "proposalnum", "position", "model", "sequence"]
+            )
+            header_correct = required_columns.issubset((col.lower() for col in data.columns))
+            if not rows.all() and not header_correct:
+                import_offset = data.loc[rows].first_valid_index()
+                data = pd.read_excel(filename, engine=engine, skiprows=import_offset+1)
             self.model = PandasModel(data)
             self.tableView.setModel(self.model)
             self.tableView.resizeColumnsToContents()
