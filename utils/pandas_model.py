@@ -103,6 +103,9 @@ class PandasModel(QAbstractTableModel):
                 """Invalid Sample names found. Only numbers, letters, dash ("-"), 
                 and underscore ("_") are allowed. Total length is sample name cannot exceed 25"""
             )
+        
+        if not self._checkEmptySamples(self._dataframe):
+            raise TypeError('Empty sample names found')
 
         if not self._checkDuplicateSamples(self._dataframe):
             raise TypeError("Duplicate sample names found.")
@@ -161,6 +164,14 @@ class PandasModel(QAbstractTableModel):
         if len(duplicate_rows):
             column_index = data.columns.get_loc("samplename")
             self._changeCellColors(column_index, duplicate_rows.index)
+            return False
+        return True
+
+    def _checkEmptySamples(self, data: pd.DataFrame) -> bool:
+        empty_rows = data[pd.isna(data['samplename'])]
+        if len(empty_rows):
+            column_index = data.columns.get_loc("samplename")
+            self._changeCellColors(column_index, empty_rows.index)
             return False
         return True
     
