@@ -153,3 +153,6 @@ dmypy.json
 cython_debug/
 
 .vscode/
+
+start_importer_amx.sh
+start_importer_fmx.sh
