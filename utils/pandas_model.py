@@ -13,7 +13,7 @@ class PandasModel(QAbstractTableModel):
     def __init__(self, dataframe: pd.DataFrame, parent=None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.validData = False
-        self._dataframe = dataframe
+        self._dataframe = dataframe.dropna(how='all')
         self.colors: Dict[Tuple[int, int], QColor] = {}
 
     def setPuckLists(self, pucklist):
@@ -206,9 +206,11 @@ class PandasModel(QAbstractTableModel):
         enteredPucks = set(data["puckname"])
         missingPucks = enteredPucks - set(masterList["whitelist"])
         column_index = data.columns.get_loc("puckname")
+        # data["puckname"].fillna('MISSING', inplace=True)
         indices = []
         for puck in missingPucks:
-            indices.extend(data.index[data["puckname"] == puck].tolist())
+            if not pd.isnull(puck):
+                indices.extend(data.index[data["puckname"] == puck].tolist())
         self._changeCellColors(column_index, indices, color=QColor(Qt.yellow))
 
         disallowedPucks = enteredPucks.intersection(set(masterList["blacklist"]))
