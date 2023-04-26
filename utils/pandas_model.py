@@ -8,16 +8,19 @@ from typing import Dict, Tuple
 
 
 class PandasModel(QAbstractTableModel):
-    """A model to interface a Qt view with pandas dataframe """
+    """A model to interface a Qt view with pandas dataframe"""
 
     def __init__(self, dataframe: pd.DataFrame, parent=None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.validData = False
         self._dataframe = dataframe
-        self.colors: Dict[Tuple[int, int], QColor ] = {}
+        self.colors: Dict[Tuple[int, int], QColor] = {}
+
+    def setPuckLists(self, pucklist):
+        self.puckList = pucklist
 
     def rowCount(self, parent=QModelIndex()) -> int:
-        """ Override method from QAbstractTableModel
+        """Override method from QAbstractTableModel
 
         Return row count of the pandas DataFrame
         """
@@ -96,27 +99,27 @@ class PandasModel(QAbstractTableModel):
     def validateData(self) -> None:
         self.resetColors()
         if not self._matchMasterlist(self._dataframe):
-            raise TypeError("Pucks submitted do not match master list. Blacklisted pucks in red and pucks not in whitelist are yellow")
+            raise TypeError(
+                "Pucks submitted do not match master list. Blacklisted pucks in red and pucks not in whitelist are yellow"
+            )
 
         if not self._checkSampleNames(self._dataframe):
             raise TypeError(
                 """Invalid Sample names found. Only numbers, letters, dash ("-"), 
                 and underscore ("_") are allowed. Total length is sample name cannot exceed 25"""
             )
-        
+
         if not self._checkEmptySamples(self._dataframe):
-            raise TypeError('Empty sample names found')
+            raise TypeError("Empty sample names found")
 
         if not self._checkDuplicateSamples(self._dataframe):
             raise TypeError("Duplicate sample names found.")
 
         if not self._checkProposalNumbers(self._dataframe):
-            raise TypeError(
-                "Invalid proposal numbers"
-            )
-        
+            raise TypeError("Invalid proposal numbers")
+
         if not self._checkDuplicatePuckPos(self._dataframe):
-            raise TypeError('Duplicate Puck name and position combinations found')
+            raise TypeError("Duplicate Puck name and position combinations found")
         self.validData = True
 
     def preprocessData(self) -> None:
@@ -131,17 +134,17 @@ class PandasModel(QAbstractTableModel):
             )
         # Remove all whitespaces from string columns
         for col in required_columns:
-            self._dataframe[col] = self._dataframe[col].astype('string')
+            self._dataframe[col] = self._dataframe[col].astype("string")
             if col != "samplename":
                 self._dataframe[col].str.replace(r"\s+", "", regex=True)
             else:
                 self._dataframe[col].str.replace(r"(\.|\s)+", "", regex=True)
 
     def _checkProposalNumbers(self, data: pd.DataFrame) -> bool:
-        proposalNumCol = 'proposalnum'
+        proposalNumCol = "proposalnum"
         # Remove all letters from proposal numbers
-        data[proposalNumCol] = data[proposalNumCol].astype('str')
-        data[proposalNumCol] = data[proposalNumCol].str.replace(r'\D', '', regex=True)
+        data[proposalNumCol] = data[proposalNumCol].astype("str")
+        data[proposalNumCol] = data[proposalNumCol].str.replace(r"\D", "", regex=True)
 
         # Check if proposal numbers have 6 digits
         indices = data[proposalNumCol][~data[proposalNumCol].map(len).eq(6)].index
@@ -152,10 +155,12 @@ class PandasModel(QAbstractTableModel):
 
         if len(data[proposalNumCol].unique()) > 1:
             return False
-        
+
         return True
 
-    def _changeCellColors(self, column_index: int, row_indices, color=QColor(Qt.red)) -> None:
+    def _changeCellColors(
+        self, column_index: int, row_indices, color=QColor(Qt.red)
+    ) -> None:
         for idx in row_indices:
             self.changeColor(idx, column_index, color)
 
@@ -168,19 +173,21 @@ class PandasModel(QAbstractTableModel):
         return True
 
     def _checkEmptySamples(self, data: pd.DataFrame) -> bool:
-        empty_rows = data[pd.isna(data['samplename'])]
+        empty_rows = data[pd.isna(data["samplename"])]
         if len(empty_rows):
             column_index = data.columns.get_loc("samplename")
             self._changeCellColors(column_index, empty_rows.index)
             return False
         return True
-    
+
     def _checkDuplicatePuckPos(self, data: pd.DataFrame) -> bool:
-        duplicate_rows = data[data.duplicated(subset=['puckname', 'position'], keep=False)]
+        duplicate_rows = data[
+            data.duplicated(subset=["puckname", "position"], keep=False)
+        ]
         if len(duplicate_rows):
-            column_index = data.columns.get_loc('puckname')
+            column_index = data.columns.get_loc("puckname")
             self._changeCellColors(column_index, duplicate_rows.index)
-            column_index = data.columns.get_loc('position')
+            column_index = data.columns.get_loc("position")
             self._changeCellColors(column_index, duplicate_rows.index)
             return False
         return True
@@ -195,22 +202,21 @@ class PandasModel(QAbstractTableModel):
         return True
 
     def _matchMasterlist(self, data: pd.DataFrame) -> bool:
-        with open("masterlist.json", "r") as f:
-            masterList = json.load(f)
+        masterList = self.puckList
         enteredPucks = set(data["puckname"])
         missingPucks = enteredPucks - set(masterList["whitelist"])
         column_index = data.columns.get_loc("puckname")
         indices = []
         for puck in missingPucks:
             indices.extend(data.index[data["puckname"] == puck].tolist())
-        self._changeCellColors(column_index, indices, color= QColor(Qt.yellow))
-        
-        disallowedPucks = enteredPucks.intersection(set(masterList['blacklist']))
+        self._changeCellColors(column_index, indices, color=QColor(Qt.yellow))
+
+        disallowedPucks = enteredPucks.intersection(set(masterList["blacklist"]))
         indices = []
         for puck in disallowedPucks:
             indices.extend(data.index[data["puckname"] == puck].tolist())
         self._changeCellColors(column_index, indices)
-        
+
         if missingPucks or disallowedPucks:
             return False
         return True

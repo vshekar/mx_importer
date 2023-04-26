@@ -2,9 +2,12 @@
     "whitelist": [
         "0000_NYX_01",
         "0000_NYX_02",
-        "0000_NYX_03"
+        "0000_NYX_03",
+        "LS-008",
+        "LS-009",
+        "LS-010"
     ],
-    "blacklist":[
+    "blacklist": [
         "0000_NYX_04"
     ]
 }

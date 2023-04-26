@@ -71,4 +71,8 @@ class Dewar(Device):
         print(f'Removing {barcode} from {position}')
         dewarID = self.db_connection.primary_dewar_uid
         puckID = self.db_connection.getContainer(filter={'name': self.puck_scanned})
-        self.db_connection.removeFromContainer(dewarID, position, puckID)
+        result = self.db_connection.removeFromContainer(dewarID, position, puckID)
+        if result:
+            print(f'Successfully removed {barcode} from {position}')
+        else:
+            print(f'Error in removing {barcode} from {position}') 

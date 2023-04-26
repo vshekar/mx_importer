@@ -7,11 +7,14 @@ import pandas as pd
 import json
 from utils.pandas_model import PandasModel
 from utils.db_lib import DBConnection
-from utils.devices import Dewar
+from gui.config import ConfigurationWindow
+from pathlib import Path
+import grp, os
 
 
 class ControlMain(QtWidgets.QMainWindow):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, config, **kwargs):
+        self.config = config
         super().__init__(*args, **kwargs)
         self.setWindowTitle("Import Pucks")
         self.tableView = self._createTableView()
@@ -20,7 +23,22 @@ class ControlMain(QtWidgets.QMainWindow):
         self._createMenuBar()
         self.model = None
         self.resize(QtWidgets.QDesktopWidget().availableGeometry().size() * 0.7)
-        # self.dewar = Dewar('XF:lob5lab9-ES:AMX', name='XF:lob5lab9-ES:AMX')
+        self.validatePuckLists()
+
+    def validatePuckLists(self):
+        pucklist_path = Path(self.config["list_path"])
+        if not pucklist_path.exists():
+            self.showModalMessage(
+                "Error",
+                f"Puck list file {pucklist_path} not found. White list and black list are empty",
+            )
+            self.pucklists = {"blacklist": [], "whitelist": []}
+        else:
+            with pucklist_path.open("r") as f:
+                self.pucklists = json.load(f)
+                for label in ["whitelist", "blacklist"]:
+                    if label not in self.pucklists.keys():
+                        self.pucklists[label] = []
 
     def _createActions(self):
         self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)
@@ -33,27 +51,41 @@ class ControlMain(QtWidgets.QMainWindow):
         self.submitPuckDataAction.triggered.connect(self.submitPuckData)
         self.exitAction = QtWidgets.QAction("&Exit", self)
         self.exitAction.triggered.connect(QtWidgets.QApplication.quit)
+        self.configWindowAction = QtWidgets.QAction("&Configuration", self)
+        self.configWindowAction.triggered.connect(self.openConfigWindow)
 
     def importExcel(self):
         filename, _ = QtWidgets.QFileDialog().getOpenFileName(
             self, "Import file", filter="Excel (*.xls *.xlsx)"
         )
         if filename:
-            if filename.endswith('xls'):
-                engine = 'xlrd'
+            if filename.endswith("xls"):
+                engine = "xlrd"
             else:
-                engine = 'openpyxl'
+                engine = "openpyxl"
             data = pd.read_excel(filename, engine=engine)
             # Check if any row besides header row contains "puckname"
-            rows = (data.applymap(lambda x: str(x).lower() == 'puckname')).any(axis=1)
+            rows = (data.applymap(lambda x: str(x).lower() == "puckname")).any(axis=1)
             required_columns = set(
-                ["puckname", "samplename", "proposalnum", "position", "model", "sequence"]
+                [
+                    "puckname",
+                    "samplename",
+                    "proposalnum",
+                    "position",
+                    "model",
+                    "sequence",
+                ]
             )
-            header_correct = required_columns.issubset((col.lower() for col in data.columns))
+            header_correct = required_columns.issubset(
+                (col.lower() for col in data.columns)
+            )
             if not rows.all() and not header_correct:
                 import_offset = data.loc[rows].first_valid_index()
-                data = pd.read_excel(filename, engine=engine, skiprows=import_offset+1)
+                data = pd.read_excel(
+                    filename, engine=engine, skiprows=import_offset + 1
+                )
             self.model = PandasModel(data)
+            self.model.setPuckLists(self.pucklists)
             self.tableView.setModel(self.model)
             self.tableView.resizeColumnsToContents()
             self.validateExcel()
@@ -64,10 +96,10 @@ class ControlMain(QtWidgets.QMainWindow):
         try:
             self.model.preprocessData()
             self.model.validateData()
-            self.showModalMessage('Success', 'Validated excel sucessfully')            
+            self.showModalMessage("Success", "Validated excel sucessfully")
 
         except TypeError as e:
-            self.showModalMessage('Error', e)            
+            self.showModalMessage("Error", e)
 
     def showModalMessage(self, title, message):
         self.msg = QtWidgets.QMessageBox()
@@ -75,7 +107,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.msg.setModal(True)
         self.msg.setWindowTitle(title)
         self.msg.show()
-
 
     def submitPuckData(self):
         self.currentPucks = set()
@@ -86,9 +117,11 @@ class ControlMain(QtWidgets.QMainWindow):
         puckID = None
         for row in self.model.rows():
             # Check if puck exists, otherwise create one
-            if row['puckName'] != prevPuckName:
-                puckID = dbConnection.getOrCreateContainer(row['puckName'], 16, "16_pin_puck")
-                prevPuckName = row['puckName']
+            if row["puckName"] != prevPuckName:
+                puckID = dbConnection.getOrCreateContainer(
+                    row["puckName"], 16, "16_pin_puck"
+                )
+                prevPuckName = row["puckName"]
 
             # Create sample
             sampleName: str = row["sampleName"]
@@ -105,9 +138,7 @@ class ControlMain(QtWidgets.QMainWindow):
             if puckID not in self.currentPucks:
                 dbConnection.emptyContainer(puckID)
                 self.currentPucks.add(puckID)
-            dbConnection.insertIntoContainer(
-                puckID, row["position"], sampleID
-            )
+            dbConnection.insertIntoContainer(puckID, row["position"], sampleID)
 
     def _createMenuBar(self):
         menuBar = self.menuBar()
@@ -118,6 +149,10 @@ class ControlMain(QtWidgets.QMainWindow):
         fileMenu.addAction(self.validateExcelAction)
         fileMenu.addAction(self.submitPuckDataAction)
         fileMenu.addAction(self.exitAction)
+        if self.config["admin_group"] in [
+            grp.getgrgid(g).gr_name for g in os.getgroups()
+        ]:
+            fileMenu.addAction(self.configWindowAction)
 
     def _createTableView(self):
         view = QtWidgets.QTableView()
@@ -127,9 +162,14 @@ class ControlMain(QtWidgets.QMainWindow):
         view.setSelectionMode(QtWidgets.QTableView.NoSelection)
         return view
 
+    def openConfigWindow(self):
+        self.configWindow = ConfigurationWindow(
+            config=self.config, puck_list=self.pucklists
+        )
 
-if __name__ == "__main__":
+
+def start_app(config):
     app = QtWidgets.QApplication(sys.argv)
-    ex = ControlMain()
+    ex = ControlMain(config=config)
     ex.show()
     sys.exit(app.exec_())
