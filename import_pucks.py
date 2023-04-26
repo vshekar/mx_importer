@@ -148,11 +148,12 @@ class ControlMain(QtWidgets.QMainWindow):
         fileMenu.addAction(self.importExcelAction)
         fileMenu.addAction(self.validateExcelAction)
         fileMenu.addAction(self.submitPuckDataAction)
-        fileMenu.addAction(self.exitAction)
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
             fileMenu.addAction(self.configWindowAction)
+        fileMenu.addAction(self.exitAction)
+        
 
     def _createTableView(self):
         view = QtWidgets.QTableView()

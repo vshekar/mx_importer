@@ -7,6 +7,8 @@ from qtpy.QtWidgets import (
     QCheckBox,
 )
 from .listWidget import ListWidget
+from pathlib import Path
+import json
 
 
 class ConfigurationWindow(QDialog):
@@ -75,7 +77,12 @@ class ConfigurationWindow(QDialog):
         self.accept()
 
     def applyClicked(self):
-        pass
+        self.puck_list["whitelist"] = self.whitelistWidget.puck_list
+        self.puck_list["blacklist"] = self.blacklistWidget.puck_list
+        list_path = Path(self.config["list_path"])
+        with list_path.open('w') as f:
+            json.dump(self.puck_list, f, indent=4)
+        
 
     def cancelClicked(self):
         self.reject()
