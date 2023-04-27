@@ -81,6 +81,8 @@ class ListWidget(QWidget):
         for item in items_to_remove:
             index = self.list_model.indexFromItem(item)
             self.list_model.removeRow(index.row())
+            self.puck_list.pop(index.row())
+            self.updated_list.emit(self.puck_list)
 
     def filter_pucks(self, a0: str):
         self.proxy_model.setFilterFixedString(a0)
