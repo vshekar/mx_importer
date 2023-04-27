@@ -28,14 +28,11 @@ def main() -> None:
             f"Configuration file {config_path} does not exist, please provide a valid config path"
         )
         return
+    
     try:
-        with config_path.open("r") as f:
-            config = yaml.safe_load(f)
+        start_app(config_path)
     except Exception as e:
-        print(f"Exception occured while reading config file {config_path}: {e}")
-        return
-
-    start_app(config)
+        print(f'Exception occurred: {e}')
 
 
 if __name__ == "__main__":

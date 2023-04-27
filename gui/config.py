@@ -43,15 +43,17 @@ class ConfigurationWindow(QDialog):
 
     def toggleWhitelist(self, value):
         self.whitelistWidget.setDisabled(value)
+        self.config['disable_whitelist'] = value
 
     def toggleBlacklist(self, value):
         self.blacklistWidget.setDisabled(value)
+        self.config['disable_blacklist'] = value
 
     def generate_layout(self):
         self.disableWhitelistCheckBox = QCheckBox(self)
         self.disableBlacklistCheckBox = QCheckBox(self)
-        self.disableWhitelistCheckBox.clicked.connect(self.toggleWhitelist)
-        self.disableBlacklistCheckBox.clicked.connect(self.toggleBlacklist)
+        self.disableWhitelistCheckBox.toggled.connect(self.toggleWhitelist)
+        self.disableBlacklistCheckBox.toggled.connect(self.toggleBlacklist)
 
         self.whitelistWidget = ListWidget(self, puck_list=self.puck_list["whitelist"])
         self.whitelistWidget.set_not_allowed_list(self.puck_list["blacklist"])
@@ -64,6 +66,10 @@ class ConfigurationWindow(QDialog):
         self.blacklistWidget.updated_list.connect(
             self.whitelistWidget.set_not_allowed_list
         )
+
+        self.disableWhitelistCheckBox.setChecked(self.config.get('disable_whitelist', False))
+        self.disableBlacklistCheckBox.setChecked(self.config.get('disable_blacklist', False))
+        
 
         layout = QFormLayout()
         layout.addRow("Disable Whitelist", self.disableWhitelistCheckBox)

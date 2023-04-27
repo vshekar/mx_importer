@@ -10,13 +10,22 @@ from utils.db_lib import DBConnection
 from gui.config import ConfigurationWindow
 from pathlib import Path
 import grp, os
+import yaml
+from gui.custom_table import TableWithCopy
 
 
 class ControlMain(QtWidgets.QMainWindow):
-    def __init__(self, *args, config, **kwargs):
+    def __init__(self, *args, config_path, **kwargs):
+        self.config_path = config_path
+        try:
+            with self.config_path.open("r") as f:
+                config = yaml.safe_load(f)
+        except Exception as e:
+            print(f"Exception occured while reading config file {self.config_path}: {e}")
+            raise e
         self.config = config
         super().__init__(*args, **kwargs)
-        self.setWindowTitle("Import Pucks")
+        self.setWindowTitle(f"Import Pucks at {self.config.get('beamline', 'beamline')}")
         self.tableView = self._createTableView()
         self.setCentralWidget(self.tableView)
         self._createActions()
@@ -43,6 +52,9 @@ class ControlMain(QtWidgets.QMainWindow):
     def _createActions(self):
         self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)
         self.importExcelAction.triggered.connect(self.importExcel)
+        self.saveExcelAction = QtWidgets.QAction("&Save table as Excel file", self)
+        self.saveExcelAction.triggered.connect(self.saveExcel)
+
         self.validateExcelAction = QtWidgets.QAction(
             "&Validate imported Excel file", self
         )
@@ -53,6 +65,21 @@ class ControlMain(QtWidgets.QMainWindow):
         self.exitAction.triggered.connect(QtWidgets.QApplication.quit)
         self.configWindowAction = QtWidgets.QAction("&Configuration", self)
         self.configWindowAction.triggered.connect(self.openConfigWindow)
+
+    def saveExcel(self):
+        filepath, _ = QtWidgets.QFileDialog().getSaveFileName(
+            self, "Save file", filter="Excel (*.xls, *.xlsx)"
+        )
+        if filepath:
+            filepath = Path(filepath)
+            if not filepath.suffix:
+                filepath = filepath.parent / (filepath.name + '.xlsx')
+            engine = "openpyxl"
+            if filepath.suffix == 'xls':
+                engine = "xlrd"
+
+            if self.model:
+                self.model._dataframe.to_excel(filepath, engine=engine, index=False)
 
     def importExcel(self):
         filename, _ = QtWidgets.QFileDialog().getOpenFileName(
@@ -95,7 +122,7 @@ class ControlMain(QtWidgets.QMainWindow):
             return
         try:
             self.model.preprocessData()
-            self.model.validateData()
+            self.model.validateData(self.config)
             self.showModalMessage("Success", "Validated excel sucessfully")
 
         except TypeError as e:
@@ -146,8 +173,9 @@ class ControlMain(QtWidgets.QMainWindow):
         fileMenu = QtWidgets.QMenu("&File", self)
         menuBar.addMenu(fileMenu)
         fileMenu.addAction(self.importExcelAction)
+        fileMenu.addAction(self.saveExcelAction)
         fileMenu.addAction(self.validateExcelAction)
-        fileMenu.addAction(self.submitPuckDataAction)
+        # fileMenu.addAction(self.submitPuckDataAction)
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
@@ -156,21 +184,25 @@ class ControlMain(QtWidgets.QMainWindow):
         
 
     def _createTableView(self):
-        view = QtWidgets.QTableView()
+        #view = QtWidgets.QTableView()
+        view = TableWithCopy()
         view.resize(1200, 1200)
         view.horizontalHeader().setStretchLastSection(True)
         view.setAlternatingRowColors(True)
-        view.setSelectionMode(QtWidgets.QTableView.NoSelection)
+        view.setSelectionMode(QtWidgets.QTableView.ExtendedSelection)
         return view
 
     def openConfigWindow(self):
         self.configWindow = ConfigurationWindow(
             config=self.config, puck_list=self.pucklists
         )
+        self.config = self.configWindow.config
+        with self.config_path.open('w') as f:
+            yaml.safe_dump(self.config, f)
 
 
-def start_app(config):
+def start_app(config_path):
     app = QtWidgets.QApplication(sys.argv)
-    ex = ControlMain(config=config)
+    ex = ControlMain(config_path=config_path)
     ex.show()
     sys.exit(app.exec_())

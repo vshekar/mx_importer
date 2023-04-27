@@ -96,9 +96,9 @@ class PandasModel(QAbstractTableModel):
             ix = self.index(row, col)
             self.dataChanged.emit(ix, ix, (Qt.BackgroundRole,))
 
-    def validateData(self) -> None:
+    def validateData(self, config) -> None:
         self.resetColors()
-        if not self._matchMasterlist(self._dataframe):
+        if not self._matchMasterlist(self._dataframe, config):
             raise TypeError(
                 "Pucks submitted do not match master list. Blacklisted pucks in red and pucks not in whitelist are yellow"
             )
@@ -201,23 +201,29 @@ class PandasModel(QAbstractTableModel):
             return False
         return True
 
-    def _matchMasterlist(self, data: pd.DataFrame) -> bool:
+    def _matchMasterlist(self, data: pd.DataFrame, config) -> bool:
         masterList = self.puckList
         enteredPucks = set(data["puckname"])
-        missingPucks = enteredPucks - set(masterList["whitelist"])
         column_index = data.columns.get_loc("puckname")
-        # data["puckname"].fillna('MISSING', inplace=True)
-        indices = []
-        for puck in missingPucks:
-            if not pd.isnull(puck):
-                indices.extend(data.index[data["puckname"] == puck].tolist())
-        self._changeCellColors(column_index, indices, color=QColor(Qt.yellow))
 
-        disallowedPucks = enteredPucks.intersection(set(masterList["blacklist"]))
-        indices = []
-        for puck in disallowedPucks:
-            indices.extend(data.index[data["puckname"] == puck].tolist())
-        self._changeCellColors(column_index, indices)
+        missingPucks = set()
+        if not config['disable_whitelist']:
+            missingPucks = enteredPucks - set(masterList["whitelist"])
+            
+            # data["puckname"].fillna('MISSING', inplace=True)
+            indices = []
+            for puck in missingPucks:
+                if not pd.isnull(puck):
+                    indices.extend(data.index[data["puckname"] == puck].tolist())
+            self._changeCellColors(column_index, indices, color=QColor(Qt.yellow))
+
+        disallowedPucks = set()
+        if not config['disable_blacklist']:
+            disallowedPucks = enteredPucks.intersection(set(masterList["blacklist"]))
+            indices = []
+            for puck in disallowedPucks:
+                indices.extend(data.index[data["puckname"] == puck].tolist())
+            self._changeCellColors(column_index, indices)
 
         if missingPucks or disallowedPucks:
             return False
