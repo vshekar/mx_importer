@@ -65,6 +65,7 @@ class PandasModel(QAbstractTableModel):
     def setData(self, index: QModelIndex, value: typing.Any, role: int = ...) -> bool:
         if role == Qt.EditRole:
             self._dataframe.iloc[index.row(), index.column()] = value
+            self.dataChanged.emit(index, index)
             return True
         return False
 
