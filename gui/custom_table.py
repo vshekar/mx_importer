@@ -28,7 +28,7 @@ class TableWithCopy(QTableView):
             max_column = copied_cells[-1].column()
             for c in copied_cells:
                 #copy_text += self.model().item(c.row(), c.column()).text()
-                copy_text = self.model().itemData(c)[0]
+                copy_text += self.model().itemData(c)[0]
                 if c.column() == max_column:
                     copy_text += '\n'
                 else:
@@ -36,22 +36,29 @@ class TableWithCopy(QTableView):
                     
             QApplication.clipboard().setText(copy_text)
 
-        if event.key() == Qt.Key_V and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        if event.key() == Qt.Key.Key_V and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            destination_cells = sorted(self.selectedIndexes())
             rows = QApplication.clipboard().text().split('\n')[:-1]
-            num_cols = len(rows[0].split('\t'))
+            for i,row in enumerate(rows):
+                rows[i] = row.split('\t')
+            
+            num_cols = len(rows[0])
+
             if len(rows) == 0:
                 return
-            if len(rows) != self.rowCount() or num_cols != self.columnCount():
+
+            if len(rows) == 1 and num_cols == 1:
+                for d in destination_cells:
+                    self.model().setData(d, rows[0], role=Qt.EditRole)
+                return
+
+            selected_rows = destination_cells[-1].row() - destination_cells[0].row() + 1
+            selected_cols = destination_cells[-1].column() - destination_cells[0].column() + 1
+            if len(rows) != selected_rows or num_cols != selected_cols:
                 QMessageBox.information(None, 'Error', 
                                         f'Mismatch: Copied data has {len(rows)} rows and {num_cols} columns.' 
-                                        f'Trying to paste to {self.rowCount()} rows and {self.columnCount()} columns')
+                                        f'Trying to paste to {destination_cells[-1].row()} rows and {destination_cells[-1].column()} columns')
                 return
-            self.clear()
-            self.setRowCount(len(rows))
-            self.setColumnCount(len(rows[0].split('\t')))
-            for i, row in enumerate(rows):
-                row = row.split('\t')
-                item1 = QTableWidgetItem(row[0])
-                item2 = QTableWidgetItem(row[1])
-                self.setItem(i, 0, item1)
-                self.setItem(i, 1, item2)
+
+            for d in destination_cells:
+                self.model().setData(d, rows[d.row()- destination_cells[0].row()][d.column()- destination_cells[0].column()], role=Qt.EditRole)
