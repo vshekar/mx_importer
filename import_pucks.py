@@ -21,11 +21,13 @@ class ControlMain(QtWidgets.QMainWindow):
             with self.config_path.open("r") as f:
                 config = yaml.safe_load(f)
         except Exception as e:
-            print(f"Exception occured while reading config file {self.config_path}: {e}")
+            print(
+                f"Exception occured while reading config file {self.config_path}: {e}"
+            )
             raise e
         self.config = config
         super().__init__(*args, **kwargs)
-        self.setWindowTitle(f"Import Pucks at {self.config.get('beamline', 'beamline')}")
+        self.setWindowTitle(f"Import Pucks at {self.config.get('beamline', '99id1')}")
         self.tableView = self._createTableView()
         self.setCentralWidget(self.tableView)
         self._createActions()
@@ -73,9 +75,9 @@ class ControlMain(QtWidgets.QMainWindow):
         if filepath:
             filepath = Path(filepath)
             if not filepath.suffix:
-                filepath = filepath.parent / (filepath.name + '.xlsx')
+                filepath = filepath.parent / (filepath.name + ".xlsx")
             engine = "openpyxl"
-            if filepath.suffix == 'xls':
+            if filepath.suffix == "xls":
                 engine = "xlrd"
 
             if self.model:
@@ -139,33 +141,49 @@ class ControlMain(QtWidgets.QMainWindow):
         self.currentPucks = set()
         if not self.model.validData:
             return
-        dbConnection = DBConnection()
+
+        beamline_id = self.config.get("beamline", "99id1").lower()
+        dbConnection = DBConnection(beamline_id=beamline_id)
+        progress_dialog = QtWidgets.QProgressDialog(
+            "Uploading Puck data...",
+            "Cancel",
+            0,
+            self.model.rowCount(),
+            self,
+        )
+        progress_dialog.setModal(True)
         prevPuckName = None
-        puckID = None
-        for row in self.model.rows():
+        puck_id = None
+        for i, row in enumerate(self.model.rows()):
+            progress_dialog.setValue(i + 1)
+            if progress_dialog.wasCanceled():
+                break
             # Check if puck exists, otherwise create one
-            if row["puckName"] != prevPuckName:
-                puckID = dbConnection.getOrCreateContainer(
-                    row["puckName"], 16, "16_pin_puck"
+            if row["puckname"] != prevPuckName:
+                puck_id = dbConnection.getOrCreateContainerID(
+                    row["puckname"], 16, "16_pin_puck"
                 )
-                prevPuckName = row["puckName"]
+                prevPuckName = row["puckname"]
 
             # Create sample
-            sampleName: str = row["sampleName"]
+            sampleName: str = row["samplename"]
             model = row["model"]
             seq = row["sequence"]
-            propNum = row["proposalNum"]
+            propNum = row["proposalnum"]
             sampleID = dbConnection.createSample(
-                sampleName,
+                str(sampleName),
                 "pin",
-                model=model,
-                sequence=seq,
+                model=None if pd.isna(model) else str(model),
+                sequence=None if pd.isna(seq) else str(seq),
                 proposalID=propNum,
+                container=puck_id,
             )
-            if puckID not in self.currentPucks:
-                dbConnection.emptyContainer(puckID)
-                self.currentPucks.add(puckID)
-            dbConnection.insertIntoContainer(puckID, row["position"], sampleID)
+            if puck_id not in self.currentPucks:
+                dbConnection.emptyContainer(puck_id)
+                self.currentPucks.add(puck_id)
+            dbConnection.insertIntoContainer(
+                puck_id, int(row["position"]) - 1, sampleID
+            )
 
     def _createMenuBar(self):
         menuBar = self.menuBar()
@@ -175,16 +193,15 @@ class ControlMain(QtWidgets.QMainWindow):
         fileMenu.addAction(self.importExcelAction)
         fileMenu.addAction(self.saveExcelAction)
         fileMenu.addAction(self.validateExcelAction)
-        # fileMenu.addAction(self.submitPuckDataAction)
+        fileMenu.addAction(self.submitPuckDataAction)
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
             fileMenu.addAction(self.configWindowAction)
         fileMenu.addAction(self.exitAction)
-        
 
     def _createTableView(self):
-        #view = QtWidgets.QTableView()
+        # view = QtWidgets.QTableView()
         view = TableWithCopy()
         view.resize(1200, 1200)
         view.horizontalHeader().setStretchLastSection(True)
@@ -197,7 +214,7 @@ class ControlMain(QtWidgets.QMainWindow):
             config=self.config, puck_list=self.pucklists
         )
         self.config = self.configWindow.config
-        with self.config_path.open('w') as f:
+        with self.config_path.open("w") as f:
             yaml.safe_dump(self.config, f)
 
 

@@ -10,7 +10,7 @@ import conftrak.exceptions
 
 
 class DBConnection:
-    def __init__(self, beamline_id='99id1'):
+    def __init__(self, beamline_id="99id1"):
         main_server = os.environ["MONGODB_HOST"]
 
         services_config = {
@@ -33,12 +33,10 @@ class DBConnection:
         container = {}
         if filter:
             containers = list(self.container_ref.find(**filter))
-            container =  containers[0] if containers else {}
+            container = containers[0] if containers else {}
         return container
 
-    def createContainer(
-        self, name: str, capacity: int, kind: str, **kwargs
-    ):
+    def createContainer(self, name: str, capacity: int, kind: str, **kwargs):
         if capacity is not None:
             kwargs["content"] = [""] * capacity
         uid = self.container_ref.create(
@@ -46,11 +44,13 @@ class DBConnection:
         )
         return uid
 
-    def getOrCreateContainer(self, name: str, capacity: int, kind: str, **kwargs):
-        container = self.getContainer(filter={'name': name, 'kind': kind})
+    def getOrCreateContainerID(self, name: str, capacity: int, kind: str, **kwargs):
+        container = self.getContainer(filter={"name": name, "kind": kind})
         if not container:
-            container = self.createContainer(name, capacity, kind, **kwargs)
-        return container
+            container_id = self.createContainer(name, capacity, kind, **kwargs)
+        else:
+            container_id = container["uid"]
+        return container_id
 
     def updateContainer(
         self, container: Dict[str, Any]
@@ -65,7 +65,7 @@ class DBConnection:
         return cont
 
     def emptyContainer(self, id):
-        c = self.getContainer(filter={'uid':id})
+        c = self.getContainer(filter={"uid": id})
         if c is not None:
             c["content"] = [""] * len(c["content"])
             self.updateContainer(c)
@@ -73,17 +73,17 @@ class DBConnection:
         return False
 
     def insertIntoContainer(self, parent_uid, position, child_uid):
-        #dewar = self.getContainer(filter={'owner':self.owner, 'name': dewar_name})
-        #puck = self.getContainer(filter={'owner':self.owner, 'kind': '16_puck_pin', 'name': puck_name})
-        parent_container = self.getContainer(filter={'uid': parent_uid})
+        # dewar = self.getContainer(filter={'owner':self.owner, 'name': dewar_name})
+        # puck = self.getContainer(filter={'owner':self.owner, 'kind': '16_puck_pin', 'name': puck_name})
+        parent_container = self.getContainer(filter={"uid": parent_uid})
         if parent_container:
             parent_container["content"][position] = child_uid
             self.updateContainer(parent_container)
             return True
         return False
-    
+
     def removeFromContainer(self, parent_uid, position, child_uid):
-        parent_container = self.getContainer(filter={'uid': parent_uid})
+        parent_container = self.getContainer(filter={"uid": parent_uid})
         if parent_container:
             if parent_container["content"][position] == child_uid:
                 parent_container["content"][position] = ""
@@ -92,7 +92,7 @@ class DBConnection:
         return False
 
     def getAllPucks(self):
-        filters={"kind": "16_puck_pin","owner":self.owner}
+        filters = {"kind": "16_puck_pin", "owner": self.owner}
         return list(self.container_ref.find(**filters))
 
     def getBLConfig(self, paramName):
@@ -106,14 +106,20 @@ class DBConnection:
 
         # if it exists it's a query or update
         try:
-            bli = list(self.configuration_ref.find(key='beamline_info', beamline_id=self.beamline_id, info_name=info_name))[0]
+            bli = list(
+                self.configuration_ref.find(
+                    key="beamline_info",
+                    beamline_id=self.beamline_id,
+                    info_name=info_name,
+                )
+            )[0]
 
             if info_dict is None:  # this is a query
-                return bli['info']
+                return bli["info"]
 
             # else it's an update
-            bli_uid = bli.pop('uid', '')
-            self.configuration_ref.update({'uid': bli_uid},{'info':info_dict})
+            bli_uid = bli.pop("uid", "")
+            self.configuration_ref.update({"uid": bli_uid}, {"info": info_dict})
 
         # else it's a create
         except conftrak.exceptions.ConfTrakNotFoundException:
@@ -123,28 +129,30 @@ class DBConnection:
                 return {}
 
             # normal create
-            data = {'key': 'beamline_info', 'info_name':info_name, 'info': info_dict}
-            uid = self.configuration_ref.create(self.beamline_id,**data)
-
+            data = {"key": "beamline_info", "info_name": info_name, "info": info_dict}
+            uid = self.configuration_ref.create(self.beamline_id, **data)
 
     @property
     def primary_dewar_name(self):
         return self.getBLConfig("primaryDewarName")
-    
+
     @property
     def primary_dewar_uid(self):
-        return self.getContainer(filter={'name': self.primary_dewar_name})
+        return self.getContainer(filter={"name": self.primary_dewar_name})
 
     def getSample(self, filter):
         samples = list(self.sample_ref.find(**filter))
         if samples:
             return samples[0]
         return {}
-    
-    def createSample(self, sample_name, kind='pin', proposalID=None, **kwargs):
-        if 'request_count' not in kwargs:
-            kwargs['request_count'] = 0
-        return self.sample_ref.create(name=sample_name, 
-                                      owner=self.owner, kind=kind, 
-                                      proposalID=proposalID,
-                                      **kwargs)
+
+    def createSample(self, sample_name, kind="pin", proposalID=None, **kwargs):
+        if "request_count" not in kwargs:
+            kwargs["request_count"] = 0
+        return self.sample_ref.create(
+            name=sample_name,
+            owner=self.owner,
+            kind=kind,
+            proposalID=proposalID,
+            **kwargs
+        )
