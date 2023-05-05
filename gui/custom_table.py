@@ -38,7 +38,11 @@ class TableWithCopy(QTableView):
 
         if event.key() == Qt.Key.Key_V and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             destination_cells = sorted(self.selectedIndexes())
-            rows = QApplication.clipboard().text().split('\n')[:-1]
+            rows = QApplication.clipboard().text().split('\n')
+            if len(rows) > 1:
+                rows = rows[:-1]
+            else:
+                rows = rows
             for i,row in enumerate(rows):
                 rows[i] = row.split('\t')
             
