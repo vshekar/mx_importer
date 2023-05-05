@@ -10,8 +10,11 @@ import conftrak.exceptions
 
 
 class DBConnection:
-    def __init__(self, beamline_id="99id1"):
-        main_server = os.environ["MONGODB_HOST"]
+    def __init__(self, beamline_id="99id1", host=None):
+        if not host:
+            main_server = os.environ.get("MONGODB_HOST", "localhost")
+        else:
+            main_server = host
 
         services_config = {
             "amostra": {"host": main_server, "port": "7770"},
@@ -45,7 +48,7 @@ class DBConnection:
         return uid
 
     def getOrCreateContainerID(self, name: str, capacity: int, kind: str, **kwargs):
-        container = self.getContainer(filter={"name": name, "kind": kind})
+        container = self.getContainer(filter={"name": name, "kind": kind, "owner": self.owner})
         if not container:
             container_id = self.createContainer(name, capacity, kind, **kwargs)
         else:
