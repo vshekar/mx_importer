@@ -12,6 +12,7 @@ from pathlib import Path
 import grp, os
 import yaml
 from gui.custom_table import TableWithCopy
+import time
 
 
 class ControlMain(QtWidgets.QMainWindow):
@@ -138,25 +139,36 @@ class ControlMain(QtWidgets.QMainWindow):
         self.msg.show()
 
     def submitPuckData(self):
-        self.currentPucks = set()
-        if not self.model.validData:
+        try:
+            self.model.preprocessData()
+            self.model.validateData(self.config)
+        except Exception as e:
+            self.showModalMessage("Error", f"Data not validated, will not upload.\nException: {e}")
             return
 
         beamline_id = self.config.get("beamline", "99id1").lower()
-        dbConnection = DBConnection(beamline_id=beamline_id)
-        progress_dialog = QtWidgets.QProgressDialog(
+        dbConnection = DBConnection(beamline_id=beamline_id, 
+                                    host=self.config.get('database_host', 
+                                                         os.environ.get("MONGODB_HOST", "localhost")))
+        self.progress_dialog = QtWidgets.QProgressDialog(
             "Uploading Puck data...",
             "Cancel",
             0,
             self.model.rowCount(),
             self,
         )
-        progress_dialog.setModal(True)
+        # self.progress_dialog.setModal(True)
+        self.progress_dialog.setWindowModality(Qt.WindowModal)
         prevPuckName = None
         puck_id = None
+        self.currentPucks = set()
+        self.progress_dialog.show()
+        self.progress_dialog.setValue(0)
+        time.sleep(0.25) # Dumb sleep because progress dialog doesn't initialize fast enough
         for i, row in enumerate(self.model.rows()):
-            progress_dialog.setValue(i + 1)
-            if progress_dialog.wasCanceled():
+            print(f'Processing row {i}')
+            self.progress_dialog.setValue(i + 1)
+            if self.progress_dialog.wasCanceled():
                 break
             # Check if puck exists, otherwise create one
             if row["puckname"] != prevPuckName:
