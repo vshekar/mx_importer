@@ -201,16 +201,20 @@ class ControlMain(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         # Creating menus using a QMenu object
         fileMenu = QtWidgets.QMenu("&File", self)
+        dataMenu = QtWidgets.QMenu("&Data", self)
         menuBar.addMenu(fileMenu)
+        menuBar.addMenu(dataMenu)
         fileMenu.addAction(self.importExcelAction)
         fileMenu.addAction(self.saveExcelAction)
-        fileMenu.addAction(self.validateExcelAction)
-        fileMenu.addAction(self.submitPuckDataAction)
+        fileMenu.addAction(self.exitAction)
+
+        dataMenu.addAction(self.validateExcelAction)
+        dataMenu.addAction(self.submitPuckDataAction)
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
-            fileMenu.addAction(self.configWindowAction)
-        fileMenu.addAction(self.exitAction)
+            dataMenu.addAction(self.configWindowAction)
+
 
     def _createTableView(self):
         # view = QtWidgets.QTableView()
