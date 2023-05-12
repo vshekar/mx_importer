@@ -1,3 +1,5 @@
+from typing import List
+
 from qtpy.QtWidgets import (
     QLineEdit,
     QListView,
@@ -17,7 +19,7 @@ from qtpy.QtCore import QSortFilterProxyModel, Signal, Qt
 class ListWidget(QWidget):
     updated_list = Signal(object)
 
-    def __init__(self, *args, puck_list=None, not_allowed=None, **kwargs):
+    def __init__(self, *args, puck_list: "List[str]|None"=None, not_allowed=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.list_model = QStandardItemModel(self)
         self.list_model.setHorizontalHeaderLabels(["Puck Name"])
@@ -124,4 +126,7 @@ class ListWidget(QWidget):
             item.setData(old_name, 0)
             return
         item.setData(new_name, Qt.UserRole)
+        self.puck_list[item.row()] = new_name
+        self.updated_list.emit(self.puck_list)
         self.resetting_name = False  # Done resetting name
+        

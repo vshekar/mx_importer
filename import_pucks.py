@@ -108,14 +108,15 @@ class ControlMain(QtWidgets.QMainWindow):
                 required_columns_list
             )
             header_correct = required_columns.issubset(
-                (col.lower() for col in data.columns if isinstance(col, str))
+                (col.strip().lower() for col in data.columns if isinstance(col, str))
             )
             if not rows.all() and not header_correct:
                 import_offset = data.loc[rows].first_valid_index()
-                data = pd.read_excel(
-                    filename, engine=engine, skiprows=import_offset + 1
-                )
-            data.rename(columns={col:col.lower() for col in data.columns if isinstance(col, str)}, inplace=True)
+                if import_offset:
+                    data = pd.read_excel(
+                        filename, engine=engine, skiprows=int(import_offset) + 1
+                    )
+            data.rename(columns={col:col.strip().lower() for col in data.columns if isinstance(col, str)}, inplace=True)
             data = data[required_columns_list]
             self.model = PandasModel(data)
             self.model.setPuckLists(self.pucklists)

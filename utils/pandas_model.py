@@ -106,8 +106,8 @@ class PandasModel(QAbstractTableModel):
 
         if not self._checkSampleNames(self._dataframe):
             raise TypeError(
-                """Invalid Sample names found. Only numbers, letters, dash ("-"), 
-                and underscore ("_") are allowed. Total length is sample name cannot exceed 25"""
+                'Invalid Sample names found. Only numbers, letters, dash ("-"),'
+                ' and underscore ("_") are allowed. Total length of sample name cannot exceed 25'
             )
 
         if not self._checkEmptySamples(self._dataframe):
