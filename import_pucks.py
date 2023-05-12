@@ -98,11 +98,11 @@ class ControlMain(QtWidgets.QMainWindow):
             rows = (data.applymap(lambda x: str(x).lower() == "puckname")).any(axis=1)
             required_columns_list = [
                     "puckname",
-                    "samplename",
-                    "proposalnum",
                     "position",
+                    "samplename",
                     "model",
                     "sequence",
+                    "proposalnum",
                 ]
             required_columns = set(
                 required_columns_list

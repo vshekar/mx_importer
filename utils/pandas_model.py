@@ -14,6 +14,8 @@ class PandasModel(QAbstractTableModel):
         QAbstractTableModel.__init__(self, parent)
         self.validData = False
         self._dataframe = dataframe.dropna(how="all")
+        if 'position' in self._dataframe.columns:
+            self._dataframe['position'].astype(int)
         self.colors: Dict[Tuple[int, int], QColor] = {}
 
     def setPuckLists(self, pucklist):
