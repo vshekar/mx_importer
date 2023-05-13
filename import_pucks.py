@@ -4,6 +4,7 @@ from typing import Tuple
 from qtpy.QtCore import Qt
 import sys
 import pandas as pd
+import numpy as np
 import json
 from utils.pandas_model import PandasModel
 from utils.db_lib import DBConnection
@@ -112,12 +113,11 @@ class ControlMain(QtWidgets.QMainWindow):
             )
             if not rows.all() and not header_correct:
                 import_offset = data.loc[rows].first_valid_index()
-                if import_offset:
+                if isinstance(import_offset, (int, np.integer)):
                     data = pd.read_excel(
-                        filename, engine=engine, skiprows=int(import_offset) + 1
+                        filename, engine=engine, skiprows=import_offset + 1
                     )
             data.rename(columns={col:col.strip().lower() for col in data.columns if isinstance(col, str)}, inplace=True)
-            data = data[required_columns_list]
             self.model = PandasModel(data)
             self.model.setPuckLists(self.pucklists)
             self.tableView.setModel(self.model)
@@ -130,6 +130,7 @@ class ControlMain(QtWidgets.QMainWindow):
         try:
             self.model.preprocessData()
             self.model.validateData(self.config)
+            self.tableView.resizeColumnsToContents()
             self.showModalMessage("Success", "Validated excel sucessfully")
 
         except TypeError as e:
