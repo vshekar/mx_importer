@@ -143,11 +143,11 @@ class PandasModel(QAbstractTableModel):
             columns_absent = required_columns - set(self._dataframe.columns)
             self._dataframe = self._dataframe[columns_present]
             for col in columns_absent:
-                self._dataframe[col] = ''
+                self._dataframe.loc[:,col] = ''
 
         # Set data types for various columns. By this point all required columns should be present
-        self._dataframe['position'] = pd.to_numeric(self._dataframe['position'], errors='coerce').astype('Int64')
-        self._dataframe['proposalnum'] = pd.to_numeric(self._dataframe['proposalnum'], errors='coerce').astype('Int64')
+        self._dataframe.loc[:,'position'] = pd.to_numeric(self._dataframe['position'], errors='coerce').astype('Int64')
+        self._dataframe.loc[:,'proposalnum'] = pd.to_numeric(self._dataframe['proposalnum'], errors='coerce').astype('Int64')
 
         self._dataframe = self._dataframe.astype({'sequence': 'str', 'model': 'str'})
         self._dataframe = self._dataframe[required_columns_list]
