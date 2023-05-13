@@ -120,9 +120,10 @@ class ControlMain(QtWidgets.QMainWindow):
             data.rename(columns={col:col.strip().lower() for col in data.columns if isinstance(col, str)}, inplace=True)
             self.model = PandasModel(data)
             self.model.setPuckLists(self.pucklists)
+            self.validateExcel()
             self.tableView.setModel(self.model)
             self.tableView.resizeColumnsToContents()
-            self.validateExcel()
+            
 
     def validateExcel(self):
         if not isinstance(self.model, PandasModel):
@@ -130,7 +131,6 @@ class ControlMain(QtWidgets.QMainWindow):
         try:
             self.model.preprocessData()
             self.model.validateData(self.config)
-            self.tableView.resizeColumnsToContents()
             self.showModalMessage("Success", "Validated excel sucessfully")
 
         except TypeError as e:
