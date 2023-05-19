@@ -1,6 +1,9 @@
-from qtpy.QtWidgets import QTableView, QApplication, QMessageBox, QTableWidgetItem
-from qtpy.QtCore import Qt
+import typing
+from PyQt5 import QtCore, QtGui
+from qtpy.QtWidgets import QTableView, QApplication, QMessageBox
+from qtpy.QtCore import Qt, Signal, QAbstractItemModel, QModelIndex
 import numpy as np
+
 
 class TableWithCopy(QTableView):
     """
@@ -13,39 +16,47 @@ class TableWithCopy(QTableView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def setModel(self, model: QAbstractItemModel) -> None:
+        super().setModel(model)
+        model.dataChanged.connect(self.resizeColumnsToContents)
+
     def rowCount(self):
         return self.model().rowCount()
-    
+
     def columnCount(self):
         return self.model().columnCount()
 
     def keyPressEvent(self, event):
         super().keyPressEvent(event)
-        if event.key() == Qt.Key.Key_C and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        if event.key() == Qt.Key.Key_C and (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             copied_cells = sorted(self.selectedIndexes())
 
-            copy_text = ''
+            copy_text = ""
             max_column = copied_cells[-1].column()
             for c in copied_cells:
-                #copy_text += self.model().item(c.row(), c.column()).text()
+                # copy_text += self.model().item(c.row(), c.column()).text()
                 copy_text += self.model().itemData(c)[0]
                 if c.column() == max_column:
-                    copy_text += '\n'
+                    copy_text += "\n"
                 else:
-                    copy_text += '\t'
-                    
+                    copy_text += "\t"
+
             QApplication.clipboard().setText(copy_text)
 
-        if event.key() == Qt.Key.Key_V and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+        if event.key() == Qt.Key.Key_V and (
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             destination_cells = sorted(self.selectedIndexes())
-            rows = QApplication.clipboard().text().split('\n')
+            rows = QApplication.clipboard().text().split("\n")
             if len(rows) > 1:
                 rows = rows[:-1]
             else:
                 rows = rows
-            for i,row in enumerate(rows):
-                rows[i] = row.split('\t')
-            
+            for i, row in enumerate(rows):
+                rows[i] = row.split("\t")
+
             num_cols = len(rows[0])
 
             if len(rows) == 0:
@@ -57,12 +68,27 @@ class TableWithCopy(QTableView):
                 return
 
             selected_rows = destination_cells[-1].row() - destination_cells[0].row() + 1
-            selected_cols = destination_cells[-1].column() - destination_cells[0].column() + 1
+            selected_cols = (
+                destination_cells[-1].column() - destination_cells[0].column() + 1
+            )
             if len(rows) != selected_rows or num_cols != selected_cols:
-                QMessageBox.information(None, 'Error', 
-                                        f'Mismatch: Copied data has {len(rows)} rows and {num_cols} columns.' 
-                                        f'Trying to paste to {destination_cells[-1].row()} rows and {destination_cells[-1].column()} columns')
+                QMessageBox.information(
+                    None,
+                    "Error",
+                    f"Mismatch: Copied data has {len(rows)} rows and {num_cols} columns."
+                    f"Trying to paste to {destination_cells[-1].row()} rows and {destination_cells[-1].column()} columns",
+                )
                 return
 
             for d in destination_cells:
-                self.model().setData(d, rows[d.row()- destination_cells[0].row()][d.column()- destination_cells[0].column()], role=Qt.EditRole)
+                self.model().setData(
+                    d,
+                    rows[d.row() - destination_cells[0].row()][
+                        d.column() - destination_cells[0].column()
+                    ],
+                    role=Qt.EditRole,
+                )
+
+
+class DewarTableWithCopy(TableWithCopy):
+    pass
