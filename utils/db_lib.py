@@ -48,7 +48,9 @@ class DBConnection:
         return uid
 
     def getOrCreateContainerID(self, name: str, capacity: int, kind: str, **kwargs):
-        container = self.getContainer(filter={"name": name, "kind": kind, "owner": self.owner})
+        container = self.getContainer(
+            filter={"name": name, "kind": kind, "owner": self.owner}
+        )
         if not container:
             container_id = self.createContainer(name, capacity, kind, **kwargs)
         else:
@@ -62,7 +64,7 @@ class DBConnection:
         q = {"uid": container.pop("uid", "")}
         container.pop("time", "")
         self.container_ref.update(
-            q, {"content": container["content"], "modfied_time": time.time()}
+            q, {"content": container["content"], "modified_time": time.time()}
         )
 
         return cont
