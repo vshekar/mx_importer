@@ -1,18 +1,18 @@
 from qtpy import QtWidgets
-from qtpy.QtGui import QColor
+from qtpy.QtGui import QColor, QIcon
 from typing import Tuple
 from qtpy.QtCore import Qt
 import sys
 import pandas as pd
 import numpy as np
 import json
-from utils.pandas_model import PandasModel
+from utils.pandas_model import PuckPandasModel, DewarPandasModel
 from utils.db_lib import DBConnection
 from gui.config import ConfigurationWindow
 from pathlib import Path
 import grp, os
 import yaml
-from gui.custom_table import TableWithCopy
+from gui.custom_table import TableWithCopy, DewarTableWithCopy
 import time
 
 
@@ -70,10 +70,22 @@ class ControlMain(QtWidgets.QMainWindow):
         self.configWindowAction = QtWidgets.QAction("&Configuration", self)
         self.configWindowAction.triggered.connect(self.openConfigWindow)
 
+        self.beginDewarScanAction = QtWidgets.QAction("&Begin Dewar Scan", self)
+        self.beginDewarScanAction.triggered.connect(self.setupDewarScan)
+
+    def setupDewarScan(self):
+        empty_frame = {None: [""]}
+        data = pd.DataFrame.from_dict(empty_frame)
+        self.model = DewarPandasModel(data, parent=self)
+        self.tableView = self._createTableView()
+        self.setCentralWidget(self.tableView)
+        self.tableView.setModel(self.model)
+        self.tableView.resizeColumnsToContents()
+        next_index = self.model.index(0, 0)
+        self.tableView.setCurrentIndex(next_index)
+
     def saveExcel(self):
-        filepath, _ = QtWidgets.QFileDialog().getSaveFileName(
-            self, "Save file", filter="Excel (*.xls, *.xlsx)"
-        )
+        filepath, _ = QtWidgets.QFileDialog().getSaveFileName(self, "Save file")
         if filepath:
             filepath = Path(filepath)
             if not filepath.suffix:
@@ -98,16 +110,14 @@ class ControlMain(QtWidgets.QMainWindow):
             # Check if any row besides header row contains "puckname"
             rows = (data.applymap(lambda x: str(x).lower() == "puckname")).any(axis=1)
             required_columns_list = [
-                    "puckname",
-                    "position",
-                    "samplename",
-                    "model",
-                    "sequence",
-                    "proposalnum",
-                ]
-            required_columns = set(
-                required_columns_list
-            )
+                "puckname",
+                "position",
+                "samplename",
+                "model",
+                "sequence",
+                "proposalnum",
+            ]
+            required_columns = set(required_columns_list)
             header_correct = required_columns.issubset(
                 (col.strip().lower() for col in data.columns if isinstance(col, str))
             )
@@ -117,16 +127,22 @@ class ControlMain(QtWidgets.QMainWindow):
                     data = pd.read_excel(
                         filename, engine=engine, skiprows=import_offset + 1
                     )
-            data.rename(columns={col:col.strip().lower() for col in data.columns if isinstance(col, str)}, inplace=True)
-            self.model = PandasModel(data)
+            data.rename(
+                columns={
+                    col: col.strip().lower()
+                    for col in data.columns
+                    if isinstance(col, str)
+                },
+                inplace=True,
+            )
+            self.model = PuckPandasModel(data)
             self.model.setPuckLists(self.pucklists)
             self.validateExcel()
             self.tableView.setModel(self.model)
             self.tableView.resizeColumnsToContents()
-            
 
     def validateExcel(self):
-        if not isinstance(self.model, PandasModel):
+        if not isinstance(self.model, PuckPandasModel):
             return
         try:
             self.model.preprocessData()
@@ -148,13 +164,18 @@ class ControlMain(QtWidgets.QMainWindow):
             self.model.preprocessData()
             self.model.validateData(self.config)
         except Exception as e:
-            self.showModalMessage("Error", f"Data not validated, will not upload.\nException: {e}")
+            self.showModalMessage(
+                "Error", f"Data not validated, will not upload.\nException: {e}"
+            )
             return
 
         beamline_id = self.config.get("beamline", "99id1").lower()
-        dbConnection = DBConnection(beamline_id=beamline_id, 
-                                    host=self.config.get('database_host', 
-                                                         os.environ.get("MONGODB_HOST", "localhost")))
+        dbConnection = DBConnection(
+            beamline_id=beamline_id,
+            host=self.config.get(
+                "database_host", os.environ.get("MONGODB_HOST", "localhost")
+            ),
+        )
         self.progress_dialog = QtWidgets.QProgressDialog(
             "Uploading Puck data...",
             "Cancel",
@@ -169,9 +190,11 @@ class ControlMain(QtWidgets.QMainWindow):
         self.currentPucks = set()
         self.progress_dialog.show()
         self.progress_dialog.setValue(0)
-        time.sleep(0.25) # Dumb sleep because progress dialog doesn't initialize fast enough
+        time.sleep(
+            0.25
+        )  # Dumb sleep because progress dialog doesn't initialize fast enough
         for i, row in enumerate(self.model.rows()):
-            print(f'Processing row {i}')
+            print(f"Processing row {i}")
             self.progress_dialog.setValue(i + 1)
             if self.progress_dialog.wasCanceled():
                 break
@@ -207,6 +230,7 @@ class ControlMain(QtWidgets.QMainWindow):
         # Creating menus using a QMenu object
         fileMenu = QtWidgets.QMenu("&File", self)
         dataMenu = QtWidgets.QMenu("&Data", self)
+        dewarScanMenu = QtWidgets.QMenu("&Dewar", self)
         menuBar.addMenu(fileMenu)
         menuBar.addMenu(dataMenu)
         fileMenu.addAction(self.importExcelAction)
@@ -219,11 +243,15 @@ class ControlMain(QtWidgets.QMainWindow):
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
             dataMenu.addAction(self.configWindowAction)
+            menuBar.addMenu(dewarScanMenu)
+            dewarScanMenu.addAction(self.beginDewarScanAction)
 
-
-    def _createTableView(self):
+    def _createTableView(self, dewar=False):
         # view = QtWidgets.QTableView()
-        view = TableWithCopy()
+        if dewar:
+            view = DewarTableWithCopy()
+        else:
+            view = TableWithCopy()
         view.resize(1200, 1200)
         view.horizontalHeader().setStretchLastSection(True)
         view.setAlternatingRowColors(True)
@@ -241,6 +269,7 @@ class ControlMain(QtWidgets.QMainWindow):
 
 def start_app(config_path):
     app = QtWidgets.QApplication(sys.argv)
+    app.setWindowIcon(QIcon(str(Path.cwd() / Path("gui/assets/icon.png"))))
     ex = ControlMain(config_path=config_path)
     ex.show()
     sys.exit(app.exec_())
