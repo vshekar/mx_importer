@@ -101,11 +101,10 @@ class DBConnection:
         return list(self.container_ref.find(**filters))
 
     def getBLConfig(self, paramName):
-        return self.beamlineInfo(paramName)["val"]
+        return self.beamlineInfo(paramName).get("val", None)
 
-    def beamlineInfo(self, info_name, info_dict=None):
+    def beamlineInfo(self, info_name) -> Dict[str, Any]:
         """
-        to write info:  beamlineInfo('x25', 'det', info_dict={'vendor':'adsc','model':'q315r'})
         to fetch info:  info = beamlineInfo('x25', 'det')
         """
 
@@ -118,24 +117,11 @@ class DBConnection:
                     info_name=info_name,
                 )
             )[0]
-
-            if info_dict is None:  # this is a query
-                return bli["info"]
-
-            # else it's an update
-            bli_uid = bli.pop("uid", "")
-            self.configuration_ref.update({"uid": bli_uid}, {"info": info_dict})
+            return bli
 
         # else it's a create
         except conftrak.exceptions.ConfTrakNotFoundException:
-            # edge case for 1st create in fresh database
-            # in which case this as actually a query
-            if info_dict is None:
-                return {}
-
-            # normal create
-            data = {"key": "beamline_info", "info_name": info_name, "info": info_dict}
-            uid = self.configuration_ref.create(self.beamline_id, **data)
+            return {}
 
     @property
     def primary_dewar_name(self):

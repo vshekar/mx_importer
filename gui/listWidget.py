@@ -19,7 +19,9 @@ from qtpy.QtCore import QSortFilterProxyModel, Signal, Qt
 class ListWidget(QWidget):
     updated_list = Signal(object)
 
-    def __init__(self, *args, puck_list: "List[str]|None"=None, not_allowed=None, **kwargs):
+    def __init__(
+        self, *args, puck_list: "List[str]|None" = None, not_allowed=None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.list_model = QStandardItemModel(self)
         self.list_model.setHorizontalHeaderLabels(["Puck Name"])
@@ -38,14 +40,16 @@ class ListWidget(QWidget):
         for puck_name in self.puck_list:
             item = QStandardItem(puck_name)
             item.setData(
-                puck_name, Qt.UserRole
+                puck_name, Qt.ItemDataRole.UserRole
             )  # Setting old name to replace new name if there is a validation error
             self.list_model.appendRow(item)
 
         self.list_view = QListView(self)
         self.list_view.setModel(self.proxy_model)
-        self.list_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.list_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list_view.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection
+        )
+        self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self.open_menu)
 
         self.search_box = QLineEdit(self)
@@ -114,7 +118,7 @@ class ListWidget(QWidget):
 
     def check_item(self, item: QStandardItem):
         new_name = item.data(0)
-        old_name = item.data(Qt.UserRole)
+        old_name = item.data(Qt.ItemDataRole.UserRole)
         if new_name in self.not_allowed:
             self.generate_error_message("Puck name already exists in the other list")
             self.resetting_name = True
@@ -125,8 +129,7 @@ class ListWidget(QWidget):
             self.resetting_name = True
             item.setData(old_name, 0)
             return
-        item.setData(new_name, Qt.UserRole)
+        item.setData(new_name, Qt.ItemDataRole.UserRole)
         self.puck_list[item.row()] = new_name
         self.updated_list.emit(self.puck_list)
         self.resetting_name = False  # Done resetting name
-        

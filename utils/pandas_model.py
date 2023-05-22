@@ -44,9 +44,9 @@ class BasePandasModel(QAbstractTableModel):
         if not index.isValid():
             return None
 
-        if role == Qt.DisplayRole or role == Qt.EditRole:
+        if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
             return str(self._dataframe.iloc[index.row(), index.column()])
-        if role == Qt.BackgroundRole:
+        if role == Qt.ItemDataRole.BackgroundRole:
             color = self.colors.get((index.row(), index.column()))
             if color is not None:
                 return color
@@ -58,7 +58,7 @@ class BasePandasModel(QAbstractTableModel):
             yield row
 
     def setData(self, index: QModelIndex, value: typing.Any, role: int = ...) -> bool:
-        if role == Qt.EditRole:
+        if role == Qt.ItemDataRole.EditRole:
             self._dataframe.iloc[index.row(), index.column()] = value
             self.dataChanged.emit(index, index)
             return True
@@ -71,11 +71,11 @@ class BasePandasModel(QAbstractTableModel):
 
         Return dataframe index as vertical header data and columns as horizontal header data.
         """
-        if role == Qt.DisplayRole:
-            if orientation == Qt.Horizontal:
+        if role == Qt.ItemDataRole.DisplayRole:
+            if orientation == Qt.Orientation.Horizontal:
                 return str(self._dataframe.columns[section])
 
-            if orientation == Qt.Vertical:
+            if orientation == Qt.Orientation.Vertical:
                 return str(self._dataframe.index[section])
 
         return None
@@ -83,17 +83,17 @@ class BasePandasModel(QAbstractTableModel):
     def changeColor(self, row: int, column: int, color: QColor) -> None:
         ix = self.index(row, column)
         self.colors[(row, column)] = color
-        self.dataChanged.emit(ix, ix, (Qt.BackgroundRole,))
+        self.dataChanged.emit(ix, ix, (Qt.ItemDataRole.BackgroundRole,))
 
     def resetColors(self) -> None:
         cells = list(self.colors.keys())
         self.colors = {}
         for row, col in cells:
             ix = self.index(row, col)
-            self.dataChanged.emit(ix, ix, (Qt.BackgroundRole,))
+            self.dataChanged.emit(ix, ix, (Qt.ItemDataRole.BackgroundRole,))
 
     def _changeCellColors(
-        self, column_index: int, row_indices, color=QColor(Qt.red)
+        self, column_index: int, row_indices, color=QColor(Qt.GlobalColor.red)
     ) -> None:
         for idx in row_indices:
             self.changeColor(idx, column_index, color)
@@ -106,7 +106,11 @@ class PuckPandasModel(BasePandasModel):
         self.puckList = pucklist
 
     def flags(self, index):
-        return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
+        return (
+            Qt.ItemFlag.ItemIsSelectable
+            | Qt.ItemFlag.ItemIsEnabled
+            | Qt.ItemFlag.ItemIsEditable
+        )
 
     def validateData(self, config) -> None:
         self.resetColors()
@@ -152,7 +156,7 @@ class PuckPandasModel(BasePandasModel):
         if not required_columns.issubset(self._dataframe.columns):
             columns_present = required_columns.intersection(self._dataframe.columns)
             columns_absent = required_columns - set(self._dataframe.columns)
-            self._dataframe = self._dataframe[columns_present]
+            self._dataframe = self._dataframe[list(columns_present)]
             for col in columns_absent:
                 self._dataframe.loc[:, col] = ""
 
@@ -251,7 +255,9 @@ class PuckPandasModel(BasePandasModel):
             for puck in missingPucks:
                 if not pd.isnull(puck):
                     indices.extend(data.index[data["puckname"] == puck].tolist())
-            self._changeCellColors(column_index, indices, color=QColor(Qt.yellow))
+            self._changeCellColors(
+                column_index, indices, color=QColor(Qt.GlobalColor.yellow)
+            )
 
         disallowedPucks = set()
         if not config.get("disable_blacklist", False):
@@ -268,10 +274,14 @@ class PuckPandasModel(BasePandasModel):
 
 class DewarPandasModel(BasePandasModel):
     def flags(self, index):
-        return Qt.ItemIsSelectable | Qt.ItemIsEnabled | Qt.ItemIsEditable
+        return (
+            Qt.ItemFlag.ItemIsSelectable
+            | Qt.ItemFlag.ItemIsEnabled
+            | Qt.ItemFlag.ItemIsEditable
+        )
 
     def setData(self, index: QModelIndex, value: typing.Any, role: int = ...) -> bool:
-        if role == Qt.EditRole:
+        if role == Qt.ItemDataRole.EditRole:
             if str(value).startswith("DEWAR"):
                 self.addDewar(index, value)
             else:

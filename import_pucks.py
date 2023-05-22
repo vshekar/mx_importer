@@ -1,7 +1,7 @@
 from qtpy import QtWidgets
 from qtpy.QtGui import QColor, QIcon
 from typing import Tuple
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, QSize
 import sys
 import pandas as pd
 import numpy as np
@@ -35,7 +35,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self._createActions()
         self._createMenuBar()
         self.model = None
-        self.resize(QtWidgets.QDesktopWidget().availableGeometry().size() * 0.7)
+        self.resize(QtWidgets.QDesktopWidget().availableGeometry().size() * 0.7)  # type: ignore
         self.validatePuckLists()
 
     def validatePuckLists(self):
@@ -161,69 +161,73 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def submitPuckData(self):
         try:
-            self.model.preprocessData()
-            self.model.validateData(self.config)
+            if isinstance(self.model, PuckPandasModel):
+                self.model.preprocessData()
+                self.model.validateData(self.config)
         except Exception as e:
             self.showModalMessage(
                 "Error", f"Data not validated, will not upload.\nException: {e}"
             )
             return
 
-        beamline_id = self.config.get("beamline", "99id1").lower()
-        dbConnection = DBConnection(
-            beamline_id=beamline_id,
-            host=self.config.get(
-                "database_host", os.environ.get("MONGODB_HOST", "localhost")
-            ),
-        )
-        self.progress_dialog = QtWidgets.QProgressDialog(
-            "Uploading Puck data...",
-            "Cancel",
-            0,
-            self.model.rowCount(),
-            self,
-        )
-        # self.progress_dialog.setModal(True)
-        self.progress_dialog.setWindowModality(Qt.WindowModal)
-        prevPuckName = None
-        puck_id = None
-        self.currentPucks = set()
-        self.progress_dialog.show()
-        self.progress_dialog.setValue(0)
-        time.sleep(
-            0.25
-        )  # Dumb sleep because progress dialog doesn't initialize fast enough
-        for i, row in enumerate(self.model.rows()):
-            print(f"Processing row {i}")
-            self.progress_dialog.setValue(i + 1)
-            if self.progress_dialog.wasCanceled():
-                break
-            # Check if puck exists, otherwise create one
-            if row["puckname"] != prevPuckName:
-                puck_id = dbConnection.getOrCreateContainerID(
-                    row["puckname"], 16, "16_pin_puck"
-                )
-                prevPuckName = row["puckname"]
+        if isinstance(self.model, PuckPandasModel):
+            beamline_id = self.config.get("beamline", "99id1").lower()
+            dbConnection = DBConnection(
+                beamline_id=beamline_id,
+                host=self.config.get(
+                    "database_host", os.environ.get("MONGODB_HOST", "localhost")
+                ),
+            )
+            self.progress_dialog = QtWidgets.QProgressDialog(
+                "Uploading Puck data...",
+                "Cancel",
+                0,
+                self.model.rowCount(),
+                self,
+            )
+            # self.progress_dialog.setModal(True)
+            self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+            prevPuckName = None
+            puck_id = None
+            self.currentPucks = set()
+            self.progress_dialog.show()
+            self.progress_dialog.setValue(0)
+            time.sleep(
+                0.25
+            )  # Dumb sleep because progress dialog doesn't initialize fast enough
+            for i, row in enumerate(self.model.rows()):
+                print(f"Processing row {i}")
+                self.progress_dialog.setValue(i + 1)
+                if self.progress_dialog.wasCanceled():
+                    break
+                # Check if puck exists, otherwise create one
+                if row["puckname"] != prevPuckName:
+                    puck_id = dbConnection.getOrCreateContainerID(
+                        row["puckname"], 16, "16_pin_puck"
+                    )
+                    prevPuckName = row["puckname"]
 
-            # Create sample
-            sampleName: str = row["samplename"]
-            model = row["model"]
-            seq = row["sequence"]
-            propNum = row["proposalnum"]
-            sampleID = dbConnection.createSample(
-                str(sampleName),
-                "pin",
-                model=None if pd.isna(model) else str(model),
-                sequence=None if pd.isna(seq) else str(seq),
-                proposalID=propNum,
-                container=puck_id,
-            )
-            if puck_id not in self.currentPucks:
-                dbConnection.emptyContainer(puck_id)
-                self.currentPucks.add(puck_id)
-            dbConnection.insertIntoContainer(
-                puck_id, int(row["position"]) - 1, sampleID
-            )
+                # Create sample
+                sampleName: str = row["samplename"]
+                model = row["model"]
+                seq = row["sequence"]
+                propNum = row["proposalnum"]
+                sampleID = dbConnection.createSample(
+                    str(sampleName),
+                    "pin",
+                    model=None if pd.isna(model) else str(model),
+                    sequence=None if pd.isna(seq) else str(seq),
+                    proposalID=propNum,
+                    container=puck_id,
+                )
+                if puck_id not in self.currentPucks:
+                    dbConnection.emptyContainer(puck_id)
+                    self.currentPucks.add(puck_id)
+                dbConnection.insertIntoContainer(
+                    puck_id, int(row["position"]) - 1, sampleID
+                )
+        else:
+            self.showModalMessage("Error", "Invalid data, will not upload to database")
 
     def _createMenuBar(self):
         menuBar = self.menuBar()
@@ -255,7 +259,7 @@ class ControlMain(QtWidgets.QMainWindow):
         view.resize(1200, 1200)
         view.horizontalHeader().setStretchLastSection(True)
         view.setAlternatingRowColors(True)
-        view.setSelectionMode(QtWidgets.QTableView.ExtendedSelection)
+        view.setSelectionMode(QtWidgets.QTableView.SelectionMode.ExtendedSelection)
         return view
 
     def openConfigWindow(self):

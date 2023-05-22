@@ -1,7 +1,7 @@
 import typing
 from PyQt5 import QtCore, QtGui
 from qtpy.QtWidgets import QTableView, QApplication, QMessageBox
-from qtpy.QtCore import Qt, Signal, QAbstractItemModel, QModelIndex
+from qtpy.QtCore import Qt, QAbstractItemModel, QModelIndex
 import numpy as np
 
 
@@ -55,7 +55,7 @@ class TableWithCopy(QTableView):
             else:
                 rows = rows
             for i, row in enumerate(rows):
-                rows[i] = row.split("\t")
+                rows[i] = row.split("\t")  # type: ignore
 
             num_cols = len(rows[0])
 
@@ -64,7 +64,7 @@ class TableWithCopy(QTableView):
 
             if len(rows) == 1 and num_cols == 1:
                 for d in destination_cells:
-                    self.model().setData(d, rows[0], role=Qt.EditRole)
+                    self.model().setData(d, rows[0], role=Qt.ItemDataRole.EditRole)
                 return
 
             selected_rows = destination_cells[-1].row() - destination_cells[0].row() + 1
@@ -73,7 +73,7 @@ class TableWithCopy(QTableView):
             )
             if len(rows) != selected_rows or num_cols != selected_cols:
                 QMessageBox.information(
-                    None,
+                    self,
                     "Error",
                     f"Mismatch: Copied data has {len(rows)} rows and {num_cols} columns."
                     f"Trying to paste to {destination_cells[-1].row()} rows and {destination_cells[-1].column()} columns",
@@ -86,7 +86,7 @@ class TableWithCopy(QTableView):
                     rows[d.row() - destination_cells[0].row()][
                         d.column() - destination_cells[0].column()
                     ],
-                    role=Qt.EditRole,
+                    role=Qt.ItemDataRole.EditRole,
                 )
 
 
