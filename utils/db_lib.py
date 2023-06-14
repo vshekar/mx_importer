@@ -10,7 +10,7 @@ import conftrak.exceptions
 
 
 class DBConnection:
-    def __init__(self, beamline_id="99id1", host=None):
+    def __init__(self, beamline_id="99id1", host=None, owner=None):
         if not host:
             main_server = os.environ.get("MONGODB_HOST", "localhost")
         else:
@@ -30,7 +30,10 @@ class DBConnection:
             **services_config["conftrak"]
         )
         self.beamline_id = beamline_id
-        self.owner = getpass.getuser()
+        if owner is not None:
+            self.owner = getpass.getuser()
+        else:
+            self.owner = owner
 
     def getContainer(self, filter=None):
         container = {}
