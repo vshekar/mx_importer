@@ -10,10 +10,15 @@ from utils.pandas_model import PuckPandasModel, DewarPandasModel
 from utils.db_lib import DBConnection
 from gui.config import ConfigurationWindow
 from pathlib import Path
-import grp, os
+import grp, os, getpass
 import yaml
 from gui.custom_table import TableWithCopy, DewarTableWithCopy
 import time
+from enum import Enum
+
+class Mode(Enum):
+    MANUAL = "Manual"
+    AUTOMATED = "Automated"
 
 
 class ControlMain(QtWidgets.QMainWindow):
@@ -35,8 +40,12 @@ class ControlMain(QtWidgets.QMainWindow):
         self._createActions()
         self._createMenuBar()
         self.model = None
+        self.mode = Mode.MANUAL
         self.resize(QtWidgets.QDesktopWidget().availableGeometry().size() * 0.7)  # type: ignore
         self.validatePuckLists()
+        self.status_bar = self.statusBar()
+        self.mode_status = QtWidgets.QLabel(f"MODE: {self.mode.value}")
+        self.status_bar.addPermanentWidget(self.mode_status)
 
     def validatePuckLists(self):
         pucklist_path = Path(self.config["list_path"])
@@ -54,24 +63,48 @@ class ControlMain(QtWidgets.QMainWindow):
                         self.pucklists[label] = []
 
     def _createActions(self):
-        self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)
-        self.importExcelAction.triggered.connect(self.importExcel)
+        # File menu actions
         self.saveExcelAction = QtWidgets.QAction("&Save table as Excel file", self)
         self.saveExcelAction.triggered.connect(self.saveExcel)
+        self.exitAction = QtWidgets.QAction("&Exit", self)
+        self.exitAction.triggered.connect(QtWidgets.QApplication.quit)
 
+        # Puck menu actions
+        self.importExcelAction = QtWidgets.QAction("&Import Excel file", self)
+        self.importExcelAction.triggered.connect(self.importExcel)
         self.validateExcelAction = QtWidgets.QAction(
             "&Validate imported Excel file", self
         )
         self.validateExcelAction.triggered.connect(self.validateExcel)
         self.submitPuckDataAction = QtWidgets.QAction("&Submit Puck data", self)
         self.submitPuckDataAction.triggered.connect(self.submitPuckData)
-        self.exitAction = QtWidgets.QAction("&Exit", self)
-        self.exitAction.triggered.connect(QtWidgets.QApplication.quit)
         self.configWindowAction = QtWidgets.QAction("&Configuration", self)
         self.configWindowAction.triggered.connect(self.openConfigWindow)
+        self.manualModeAction = QtWidgets.QAction("&Manual", self)
+        self.manualModeAction.triggered.connect(lambda: self._set_mode(Mode.MANUAL))
+        self.manualModeAction.setCheckable(True)
+        self.manualModeAction.setChecked(True)
+        self.automatedModeAction = QtWidgets.QAction("&Automated", self)
+        self.automatedModeAction.triggered.connect(lambda: self._set_mode(Mode.AUTOMATED))
+        self.automatedModeAction.setCheckable(True)
+        self.automatedModeAction.setChecked(False)
 
+        # Shipping Dewar menu
         self.beginDewarScanAction = QtWidgets.QAction("&Begin Dewar Scan", self)
         self.beginDewarScanAction.triggered.connect(self.setupDewarScan)
+
+    def _set_mode(self, mode):
+        self.mode = mode
+        self.mode_status.setText(f"MODE: {self.mode.value}")
+        if self.mode == Mode.AUTOMATED:
+            self.manualModeAction.setChecked(False)
+            self.automatedModeAction.setChecked(True)
+            self.owner = 'mx'
+        elif self.mode == Mode.MANUAL:
+            self.manualModeAction.setChecked(True)
+            self.automatedModeAction.setChecked(False)
+            self.owner = getpass.getuser()
+
 
     def setupDewarScan(self):
         empty_frame = {None: [""]}
@@ -177,6 +210,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 host=self.config.get(
                     "database_host", os.environ.get("MONGODB_HOST", "localhost")
                 ),
+                owner=self.owner
             )
             self.progress_dialog = QtWidgets.QProgressDialog(
                 "Uploading Puck data...",
@@ -233,16 +267,20 @@ class ControlMain(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         # Creating menus using a QMenu object
         fileMenu = QtWidgets.QMenu("&File", self)
-        dataMenu = QtWidgets.QMenu("&Data", self)
-        dewarScanMenu = QtWidgets.QMenu("&Dewar", self)
+        dataMenu = QtWidgets.QMenu("&Puck Import", self)
+        dewarScanMenu = QtWidgets.QMenu("&Shipping Dewar", self)
         menuBar.addMenu(fileMenu)
         menuBar.addMenu(dataMenu)
-        fileMenu.addAction(self.importExcelAction)
-        fileMenu.addAction(self.saveExcelAction)
-        fileMenu.addAction(self.exitAction)
+        fileMenu.addActions([self.saveExcelAction, 
+                             self.exitAction])
+        
+        dataMenu.addActions([self.importExcelAction, 
+                             self.validateExcelAction, 
+                             self.submitPuckDataAction])
+        modeSubMenu = dataMenu.addMenu("Mode")
+        modeSubMenu.addActions([self.manualModeAction, self.automatedModeAction])
 
-        dataMenu.addAction(self.validateExcelAction)
-        dataMenu.addAction(self.submitPuckDataAction)
+        
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
