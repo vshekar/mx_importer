@@ -82,7 +82,7 @@ class DBConnection:
 
     def insertIntoContainer(self, parent_uid, position, child_uid):
         # dewar = self.getContainer(filter={'owner':self.owner, 'name': dewar_name})
-        # puck = self.getContainer(filter={'owner':self.owner, 'kind': '16_puck_pin', 'name': puck_name})
+        # puck = self.getContainer(filter={'owner':self.owner, 'kind': '16_pin_puck', 'name': puck_name})
         parent_container = self.getContainer(filter={"uid": parent_uid})
         if parent_container:
             parent_container["content"][position] = child_uid
@@ -100,7 +100,7 @@ class DBConnection:
         return False
 
     def getAllPucks(self):
-        filters = {"kind": "16_puck_pin", "owner": self.owner}
+        filters = {"kind": "16_pin_puck", "owner": self.owner}
         return list(self.container_ref.find(**filters))
 
     def getBLConfig(self, paramName):
