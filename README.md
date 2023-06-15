@@ -14,7 +14,7 @@ Prototype for the puck loading software for the MX beamlines at NSLS-II.
 ## Purpose
  This software is designed to make the process of importing puck data easier and less error prone by providing validation and exact location of errors in the data.
 
-##Rules implemented as of July 2023
+## Rules implemented as of July 2023
 
 ### Preprocessing
  1. Imported file should contain the following column names, case is ignored
