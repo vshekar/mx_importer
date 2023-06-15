@@ -1,2 +1,6 @@
-list_path: ./masterlist.json
-admin_group: staff
+admin_group: admin
+beamline: TLA
+database_host: localhost:8000
+disable_blacklist: false
+disable_whitelist: true
+list_path: masterlist.json
