@@ -16,6 +16,7 @@ from gui.custom_table import TableWithCopy, DewarTableWithCopy
 import time
 from enum import Enum
 
+
 class Mode(Enum):
     MANUAL = "Manual"
     AUTOMATED = "Automated"
@@ -46,6 +47,8 @@ class ControlMain(QtWidgets.QMainWindow):
         self.status_bar = self.statusBar()
         self.mode_status = QtWidgets.QLabel(f"MODE: {self.mode.value}")
         self.status_bar.addPermanentWidget(self.mode_status)
+        # Default mode to start the application
+        self._set_mode(Mode.MANUAL)
 
     def validatePuckLists(self):
         pucklist_path = Path(self.config["list_path"])
@@ -85,7 +88,9 @@ class ControlMain(QtWidgets.QMainWindow):
         self.manualModeAction.setCheckable(True)
         self.manualModeAction.setChecked(True)
         self.automatedModeAction = QtWidgets.QAction("&Automated", self)
-        self.automatedModeAction.triggered.connect(lambda: self._set_mode(Mode.AUTOMATED))
+        self.automatedModeAction.triggered.connect(
+            lambda: self._set_mode(Mode.AUTOMATED)
+        )
         self.automatedModeAction.setCheckable(True)
         self.automatedModeAction.setChecked(False)
 
@@ -99,12 +104,11 @@ class ControlMain(QtWidgets.QMainWindow):
         if self.mode == Mode.AUTOMATED:
             self.manualModeAction.setChecked(False)
             self.automatedModeAction.setChecked(True)
-            self.owner = 'mx'
+            self.owner = "mx"
         elif self.mode == Mode.MANUAL:
             self.manualModeAction.setChecked(True)
             self.automatedModeAction.setChecked(False)
             self.owner = getpass.getuser()
-
 
     def setupDewarScan(self):
         empty_frame = {None: [""]}
@@ -210,7 +214,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 host=self.config.get(
                     "database_host", os.environ.get("MONGODB_HOST", "localhost")
                 ),
-                owner=self.owner
+                owner=self.owner,
             )
             self.progress_dialog = QtWidgets.QProgressDialog(
                 "Uploading Puck data...",
@@ -271,16 +275,18 @@ class ControlMain(QtWidgets.QMainWindow):
         dewarScanMenu = QtWidgets.QMenu("&Shipping Dewar", self)
         menuBar.addMenu(fileMenu)
         menuBar.addMenu(dataMenu)
-        fileMenu.addActions([self.saveExcelAction, 
-                             self.exitAction])
-        
-        dataMenu.addActions([self.importExcelAction, 
-                             self.validateExcelAction, 
-                             self.submitPuckDataAction])
+        fileMenu.addActions([self.saveExcelAction, self.exitAction])
+
+        dataMenu.addActions(
+            [
+                self.importExcelAction,
+                self.validateExcelAction,
+                self.submitPuckDataAction,
+            ]
+        )
         modeSubMenu = dataMenu.addMenu("Mode")
         modeSubMenu.addActions([self.manualModeAction, self.automatedModeAction])
 
-        
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
