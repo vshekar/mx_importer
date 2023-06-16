@@ -31,7 +31,7 @@ Prototype for the puck loading software for the MX beamlines at NSLS-II.
  4. All whitespaces are stripped from data
 
 ### Validation checks
- 1. Match puck names against the blacklist and whitelist. Blacklisted pucks highlighted in red and whitelisted pucks in yellow
+ 1. Match puck names against the blacklist and whitelist. Blacklisted pucks highlighted in red and pucks NOT in whitelist highlighted in yellow
  2. Sample names cannot exceed 25 characters and should only contain letters, numbers, dash `-` and underscore `_`
  3. Sample names cannot be empty
  4. Sample names cannot be repeated in the same column
@@ -52,9 +52,9 @@ disable_whitelist: true
 list_path: masterlist.json
 ```
 
-`admin_group` : Specifies which user group the admin should belong to, only those part of the admin group can see the settings window
-`beamline` : Three letter acronym for the beamline
-`database_host` : Address of the amostra and conftrak mongo database
-`disable_whitelist` : Choose whether to use or ignore whitelist during validation
-`disable_blacklist` : Choose whether to use or ignore blacklist during validation
-`list_path`: Path to json file that contains black and white lists
+- `admin_group` : Specifies which user group the admin should belong to, only those part of the admin group can see the settings window
+- `beamline` : Three letter acronym for the beamline
+- `database_host` : Address of the amostra and conftrak mongo database
+- `disable_whitelist` : Choose whether to use or ignore whitelist during validation
+- `disable_blacklist` : Choose whether to use or ignore blacklist during validation
+- `list_path`: Path to json file that contains black and white lists
