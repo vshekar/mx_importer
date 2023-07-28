@@ -135,7 +135,10 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.model._dataframe.to_excel(filepath, engine=engine, index=False)
 
     def importExcel(self):
-        filename, _ = QtWidgets.QFileDialog().getOpenFileName(
+        dialog = QtWidgets.QFileDialog()
+        if self.config.get("open_in_work_dir", True):
+            dialog.setDirectory(os.getcwd())
+        filename, _ = dialog.getOpenFileName(
             self, "Import file", filter="Excel (*.xls *.xlsx)"
         )
         if filename:

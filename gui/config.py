@@ -43,11 +43,14 @@ class ConfigurationWindow(QDialog):
 
     def toggleWhitelist(self, value):
         self.whitelistWidget.setDisabled(value)
-        self.config['disable_whitelist'] = value
+        self.config["disable_whitelist"] = value
 
     def toggleBlacklist(self, value):
         self.blacklistWidget.setDisabled(value)
-        self.config['disable_blacklist'] = value
+        self.config["disable_blacklist"] = value
+
+    def toggleWorkingDir(self, value):
+        self.config["open_in_work_dir"] = value
 
     def generate_layout(self):
         self.disableWhitelistCheckBox = QCheckBox(self)
@@ -67,11 +70,21 @@ class ConfigurationWindow(QDialog):
             self.whitelistWidget.set_not_allowed_list
         )
 
-        self.disableWhitelistCheckBox.setChecked(self.config.get('disable_whitelist', False))
-        self.disableBlacklistCheckBox.setChecked(self.config.get('disable_blacklist', False))
-        
+        self.disableWhitelistCheckBox.setChecked(
+            self.config.get("disable_whitelist", False)
+        )
+        self.disableBlacklistCheckBox.setChecked(
+            self.config.get("disable_blacklist", False)
+        )
+
+        self.openInWorkingDirCheckBox = QCheckBox(self)
+        self.openInWorkingDirCheckBox.setChecked(
+            self.config.get("open_in_work_dir", True)
+        )
+        self.openInWorkingDirCheckBox.toggled.connect(self.toggleWorkingDir)
 
         layout = QFormLayout()
+        layout.addRow("Open in working dir", self.openInWorkingDirCheckBox)
         layout.addRow("Disable Whitelist", self.disableWhitelistCheckBox)
         layout.addRow("Whitelist", self.whitelistWidget)
         layout.addRow("Disable Blacklist", self.disableBlacklistCheckBox)
@@ -86,9 +99,8 @@ class ConfigurationWindow(QDialog):
         self.puck_list["whitelist"] = self.whitelistWidget.puck_list
         self.puck_list["blacklist"] = self.blacklistWidget.puck_list
         list_path = Path(self.config["list_path"])
-        with list_path.open('w') as f:
+        with list_path.open("w") as f:
             json.dump(self.puck_list, f, indent=4)
-        
 
     def cancelClicked(self):
         self.reject()

@@ -14,7 +14,7 @@ class BasePandasModel(QAbstractTableModel):
     def __init__(self, dataframe: pd.DataFrame, parent=None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.validData = False
-        self._dataframe = dataframe.dropna(how="all")
+        self._dataframe = dataframe.dropna(how="all").reset_index(drop=True)
         self.colors: Dict[Tuple[int, int], QColor] = {}
 
     def rowCount(self, parent=QModelIndex()) -> int:
@@ -123,13 +123,16 @@ class PuckPandasModel(BasePandasModel):
             raise TypeError(
                 'Invalid Sample names found. Only numbers, letters, dash ("-"),'
                 ' and underscore ("_") are allowed. Total length of sample name cannot exceed 25'
+                " Automatically changed invalid characters to underscore and highlighted in yellow"
             )
 
         if not self._checkEmptySamples(self._dataframe):
             raise TypeError("Empty sample names found")
 
         if not self._checkDuplicateSamples(self._dataframe):
-            raise TypeError("Duplicate sample names found.")
+            raise TypeError(
+                "Duplicate sample names found. Added postfix and highlighted in yellow"
+            )
 
         if not self._checkProposalNumbers(self._dataframe):
             raise TypeError("Invalid proposal numbers")
@@ -205,15 +208,23 @@ class PuckPandasModel(BasePandasModel):
         return True
 
     def _checkDuplicateSamples(self, data: pd.DataFrame) -> bool:
-        duplicate_rows = data[data["samplename"].duplicated(keep=False)]
+        column = "samplename"
+        duplicate_rows = data[data[column].duplicated(keep=False)]
+        duplicates = data[data.duplicated(column)]
+        counter = (duplicates.groupby(column).cumcount() + 1).astype(str).str.zfill(3)
+        data.loc[counter.index, column] += "_" + counter
+
         if len(duplicate_rows):
             column_index = data.columns.get_loc("samplename")
-            self._changeCellColors(column_index, duplicate_rows.index)
+            self._changeCellColors(
+                column_index, duplicate_rows.index, color=QColor(Qt.GlobalColor.yellow)
+            )
             return False
         return True
 
     def _checkEmptySamples(self, data: pd.DataFrame) -> bool:
-        empty_rows = data[pd.isna(data["samplename"])]
+        column = "samplename"
+        empty_rows = data[pd.isna(data[column])]
         if len(empty_rows):
             column_index = data.columns.get_loc("samplename")
             self._changeCellColors(column_index, empty_rows.index)
@@ -235,9 +246,21 @@ class PuckPandasModel(BasePandasModel):
     def _checkSampleNames(self, data: pd.DataFrame) -> bool:
         sampleNameRegex = "[0-9a-zA-Z-_]{0,25}"
         non_matching_rows = data[~data["samplename"].str.fullmatch(sampleNameRegex)]
+        # replacing non-matching characters
+        data["samplename"] = data["samplename"].apply(
+            lambda x: re.sub(r"[^0-9a-zA-Z-_]", "_", x)
+        )
+
+        # truncate strings to the first 25 characters
+        data["samplename"] = data["samplename"].apply(lambda x: x[:25])
+
         if len(non_matching_rows):
             column_index = data.columns.get_loc("samplename")
-            self._changeCellColors(column_index, non_matching_rows.index)
+            self._changeCellColors(
+                column_index,
+                non_matching_rows.index,
+                color=QColor(Qt.GlobalColor.yellow),
+            )
             return False
         return True
 
