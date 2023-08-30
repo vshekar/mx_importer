@@ -1,6 +1,19 @@
+# Operating system user group that administrators are part of, if you don't belong to this group you cannot view the settings
 admin_group: admin
+
+# Three letter acronym for the beamline
 beamline: TLA
+
+# Hostname for the database along with its port
 database_host: localhost:8000
+
+# Disable black and white lists
 disable_blacklist: false
 disable_whitelist: true
+
+# Location of the json file that contains the white list and black list
 list_path: masterlist.json
+
+# Toggle if the importer should open files in the directory where the importer is started
+# If set to false, the importer will open in the folder last opened in the file dialog
+open_in_work_dir: true

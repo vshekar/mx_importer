@@ -1,0 +1,11 @@
+dewar:
+  suffix: "XF:lob5lab9-ES:AMX"
+  sectors:
+    total: 8
+    type: "numerical"
+    # In case you don't want it to be auto generated, remove above lines and add custom as below
+    #custom: [1, 2, 3]
+  pucks:
+    total: 3
+    type: "alphabetical"
+    #custom: ["A", "B"]
