@@ -1,9 +1,10 @@
 from typing import Dict, Any
-from utils.devices import create_dewar_class
+from utils.devices import create_dewar_class, Dewar
 import argparse
 import yaml
 from pathlib import Path
 from import_pucks import start_app
+import traceback
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -22,7 +23,7 @@ def init_argparse() -> argparse.ArgumentParser:
 def parse_config(config_path: Path):
     with config_path.open("r") as f:
         config = yaml.safe_load(f)
-    if not all(key in config for key in ["suffix", "sector", "pucks"]):
+    if not all(key in config['dewar'] for key in ["suffix", "sectors", "pucks"]):
         return None
     return config
 
@@ -46,12 +47,18 @@ def main():
         print("Error parsing config file, missing suffix, sector or pucks")
         exit()
     try:
-        dewar = create_dewar_class(config)
-    except:
-        print("Exception: {}")
+        Dewar = create_dewar_class(config)
+        dewar = Dewar(config['dewar']["suffix"], 
+                      name="dewar", 
+                      beamline_id=config["dewar"]["beamline"], 
+                      db_host=config["dewar"]["db_host"],
+                      )
+    except Exception as e:
+        print(f"Exception: {e}")
+        print(traceback.print_exc())
 
     while True:
-        pass
+            pass
 
 
 if __name__ == "__main__":

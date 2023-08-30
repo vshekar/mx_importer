@@ -120,7 +120,7 @@ class DBConnection:
                     info_name=info_name,
                 )
             )[0]
-            return bli
+            return bli['info']
 
         # else it's a create
         except conftrak.exceptions.ConfTrakNotFoundException:
@@ -132,7 +132,7 @@ class DBConnection:
 
     @property
     def primary_dewar_uid(self):
-        return self.getContainer(filter={"name": self.primary_dewar_name})
+        return self.getContainer(filter={"name": self.primary_dewar_name, "owner": self.beamline_id.lower()})['uid']
 
     def getSample(self, filter):
         samples = list(self.sample_ref.find(**filter))

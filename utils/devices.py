@@ -13,9 +13,9 @@ class Puck(Device):
 
 
 class Sector(Device):
-    a = Cpt(Puck, "A}", name="A")
-    b = Cpt(Puck, "B}", name="B")
-    c = Cpt(Puck, "C}", name="C")
+    A = Cpt(Puck, "A}", name="A")
+    B = Cpt(Puck, "B}", name="B")
+    C = Cpt(Puck, "C}", name="C")
 
 
 class Dewar(Device):
@@ -25,71 +25,45 @@ class Dewar(Device):
             for i in range(1, 9)
         }
     )
+    num_sectors = 8
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, beamline_id='amx', db_host='localhost', owner='mx', **kwargs):
         super().__init__(*args, **kwargs)
-        self.db_connection = DBConnection()
-        self.puck_positions = [
-            f"{a}{b}"
-            for a, b in product([str(i) for i in range(1, 9)], ["A", "B", "C"])
-        ]
-
-        for i in range(1, 9):
-            sector: Sector = getattr(self.sectors, "sector_{i}")
-            sector.a.barcode.subscribe(self.handle_barcode)
-            sector.b.barcode.subscribe(self.handle_barcode)
-            sector.c.barcode.subscribe(self.handle_barcode)
-
+        self.db_connection = DBConnection(beamline_id=beamline_id, host=db_host, owner=owner)
+        
+        for i in range(1, self.num_sectors+1):
+            sector: Sector = getattr(self.sectors, f"sector_{i}")
+            sector.A.barcode.subscribe(self.handle_barcode)
+            sector.B.barcode.subscribe(self.handle_barcode)
+            sector.C.barcode.subscribe(self.handle_barcode)
+    
     def handle_barcode(self, value, old_value, **kwargs):
-        if old_value != "" and value:
-            print(f"Loading puck {value}. Kwargs : {kwargs}")
-        elif value != "" and old_value:
-            print(f"Unloading puck {old_value}. Kwargs : {kwargs}")
+        location = kwargs['obj'].parent.name.split("_")[-1]
+        sector = kwargs['obj'].parent.name.split("_")[-2]
+        puck_pos = self.pos_to_int(sector, location)
+        if isinstance(value, str) and value != '':
+            print(f"Loading puck {value} at pos {puck_pos}")
+            self.insertIntoContainer(value, puck_pos)
 
-    def toggle_system(self, value, **kwargs):
-        print(value)
-        if not value:
-            print("System off")
-            return
+        elif value == "" and isinstance(old_value, str) and old_value != "":
+            print(f"Unloading puck {old_value} at pos {puck_pos}")
+            self.removeFromContainer(old_value, puck_pos)
 
-        print("System on")
-        for sector_num in range(1, 9):
-            sector = getattr(self.sectors, f"sector_{sector_num}", None)
-            if sector is None:
-                continue
-            for puck_pos in ["A", "B", "C"]:
-                print(
-                    f"{sector_num}{puck_pos} : {getattr(sector, puck_pos).barcode.get()}"
-                )
-
-        self.handle_loading_unloading()
-
-    def handle_loading_unloading(self):
-        self.loading_in: EpicsSignalRO
-        loading = self.loading_in.get()
-        if loading:
-            self.handle_loading()
-        else:
-            self.handle_unloading()
-
-    def handle_loading(self, pos_name):
-        puck_name = self.puck_barcode[pos_name].get()
-        print(f"Loading {puck_name} into {pos_name}")
-
-    def handle_unloading(self, pos_name):
-        puck_name = self.puck_barcode[pos_name].get()
-        print(f"Unloading {puck_name} from {pos_name}")
+    def pos_to_int(self, sector, location):
+        sector = int(sector)
+        location = ord(location) - 65
+        return (sector-1)*3 + location
 
     def insertIntoContainer(self, barcode, position):
         print(f"Inserting {barcode} into {position}")
         dewarID = self.db_connection.primary_dewar_uid
-        puckID = self.db_connection.getContainer(filter={"name": self.puck_scanned})
+        puckID = self.db_connection.getContainer(filter={"name": barcode})['uid']
         self.db_connection.insertIntoContainer(dewarID, position, puckID)
 
     def removeFromContainer(self, barcode, position):
         print(f"Removing {barcode} from {position}")
         dewarID = self.db_connection.primary_dewar_uid
-        puckID = self.db_connection.getContainer(filter={"name": self.puck_scanned})
+        puckID = self.db_connection.getContainer(filter={"name": barcode})['uid']
         result = self.db_connection.removeFromContainer(dewarID, position, puckID)
         if result:
             print(f"Successfully removed {barcode} from {position}")
@@ -98,7 +72,7 @@ class Dewar(Device):
 
 
 def create_dewar_class(config: "dict[str, Any]"):
-    num_sectors = config["dewars"]["sectors"]["total"]
+    num_sectors = config["dewar"]["sectors"]["total"]
 
     return type(
         f"Dewar_{num_sectors}Sectors",
@@ -106,7 +80,7 @@ def create_dewar_class(config: "dict[str, Any]"):
         {
             "sectors": DDC(
                 {
-                    f"sector_{i}": (Sector, f"{{Puck:{i}}}", {"name": f"sector_{i}"})
+                    f"sector_{i}": (Sector, f"{{Puck:{i}", {"name": f"sector_{i}"})
                     for i in range(1, num_sectors + 1)
                 }
             )
