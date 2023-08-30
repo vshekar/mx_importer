@@ -1,5 +1,7 @@
 dewar:
-  suffix: "XF:lob5lab9-ES:AMX"
+  beamline: "amx"
+  db_host: "localhost"
+  suffix: "XF:17IDB-ES:AMX"
   sectors:
     total: 8
     type: "numerical"
