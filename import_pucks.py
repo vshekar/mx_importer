@@ -141,44 +141,61 @@ class ControlMain(QtWidgets.QMainWindow):
         filename, _ = dialog.getOpenFileName(
             self, "Import file", filter="Excel (*.xls *.xlsx)"
         )
+        required_columns_list = [
+            "puckname",
+            "position",
+            "samplename",
+            "model",
+            "sequence",
+            "proposalnum",
+        ]
         if filename:
-            if filename.endswith("xls"):
-                engine = "xlrd"
-            else:
-                engine = "openpyxl"
-            data = pd.read_excel(filename, engine=engine)
-            # Check if any row besides header row contains "puckname"
-            rows = (data.applymap(lambda x: str(x).lower() == "puckname")).any(axis=1)
-            required_columns_list = [
-                "puckname",
-                "position",
-                "samplename",
-                "model",
-                "sequence",
-                "proposalnum",
-            ]
-            required_columns = set(required_columns_list)
-            header_correct = required_columns.issubset(
-                (col.strip().lower() for col in data.columns if isinstance(col, str))
-            )
-            if not rows.all() and not header_correct:
-                import_offset = data.loc[rows].first_valid_index()
-                if isinstance(import_offset, (int, np.integer)):
-                    data = pd.read_excel(
-                        filename, engine=engine, skiprows=import_offset + 1
+            excel_file = pd.ExcelFile(filename)
+            for sheet_name in excel_file.sheet_names:
+                data = excel_file.parse(sheet_name)
+                if data.empty:
+                    continue
+                # Check if any row besides header row contains "puckname"
+                rows = (data.applymap(lambda x: str(x).lower() == "puckname")).any(
+                    axis=1
+                )
+
+                required_columns = set(required_columns_list)
+                header_correct = required_columns.issubset(
+                    (
+                        col.strip().lower()
+                        for col in data.columns
+                        if isinstance(col, str)
                     )
-            data.rename(
-                columns={
-                    col: col.strip().lower()
-                    for col in data.columns
-                    if isinstance(col, str)
-                },
-                inplace=True,
-            )
-            self.model = PuckPandasModel(data)
-            self.model.setPuckLists(self.pucklists)
-            self.validateExcel()
-            self.tableView.setModel(self.model)
+                )
+                if not rows.all() and not header_correct:
+                    import_offset = data.loc[rows].first_valid_index()
+                    if isinstance(import_offset, (int, np.integer)):
+                        data = excel_file.parse(
+                            sheet_name=sheet_name, skiprows=import_offset + 1
+                        )
+                data.rename(
+                    columns={
+                        col: col.strip().lower()
+                        for col in data.columns
+                        if isinstance(col, str)
+                    },
+                    inplace=True,
+                )
+                # Check headers again after offset
+                header_correct = required_columns.issubset(
+                    (
+                        col.strip().lower()
+                        for col in data.columns
+                        if isinstance(col, str)
+                    )
+                )
+                if header_correct:
+                    self.model = PuckPandasModel(data)
+                    self.model.setPuckLists(self.pucklists)
+                    self.validateExcel()
+                    self.tableView.setModel(self.model)
+                    break
             self.tableView.resizeColumnsToContents()
 
     def validateExcel(self):
