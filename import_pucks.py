@@ -134,6 +134,20 @@ class ControlMain(QtWidgets.QMainWindow):
             if self.model:
                 self.model._dataframe.to_excel(filepath, engine=engine, index=False)
 
+    def identify_excel_format(self, file_path):
+        with open(file_path, 'rb') as f:
+            header = f.read(8)
+        
+        xls_header = b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'
+        xlsx_header = b'\x50\x4B\x03\x04'
+
+        if header[:8] == xls_header:
+            return 'xlrd'
+        elif header[:4] == xlsx_header[:4]:
+            return 'openpyxl'
+        else:
+            return None
+
     def importExcel(self):
         dialog = QtWidgets.QFileDialog()
         if self.config.get("open_in_work_dir", True):
@@ -150,7 +164,8 @@ class ControlMain(QtWidgets.QMainWindow):
             "proposalnum",
         ]
         if filename:
-            excel_file = pd.ExcelFile(filename)
+            engine = self.identify_excel_format(filename)
+            excel_file = pd.ExcelFile(filename, engine=engine)
             for sheet_name in excel_file.sheet_names:
                 data = excel_file.parse(sheet_name)
                 if data.empty:
