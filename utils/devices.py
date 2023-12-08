@@ -54,13 +54,24 @@ class Dewar(Device):
         location = ord(location) - 65
         return (sector-1)*3 + location
 
+    def remove_newline(self, barcode):
+        if barcode.endswith("\\n"):
+            barcode = barcode.split("\\n")[0]
+        barcode = str(barcode).strip()
+        return barcode
+
     def insertIntoContainer(self, barcode, position):
+        barcode = self.remove_newline(barcode)
         print(f"Inserting {barcode} into {position}")
         dewarID = self.db_connection.primary_dewar_uid
-        puckID = self.db_connection.getContainer(filter={"name": barcode})['uid']
-        self.db_connection.insertIntoContainer(dewarID, position, puckID)
+        puckID = self.db_connection.getContainer(filter={"name": barcode}).get('uid')
+        if puckID:
+            self.db_connection.insertIntoContainer(dewarID, position, puckID)
+        else:
+            print(f"Puck ID not found for {barcode}")
 
     def removeFromContainer(self, barcode, position):
+        barcode = self.remove_newline(barcode)
         print(f"Removing {barcode} from {position}")
         dewarID = self.db_connection.primary_dewar_uid
         puckID = self.db_connection.getContainer(filter={"name": barcode})['uid']

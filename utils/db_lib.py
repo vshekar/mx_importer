@@ -39,7 +39,10 @@ class DBConnection:
         container = {}
         if filter:
             containers = list(self.container_ref.find(**filter))
-            container = containers[0] if containers else {}
+            if containers:
+                container = max(containers, key=lambda x: x.get('modified_time', float('-inf')))
+            else:
+                container = {}
         return container
 
     def createContainer(self, name: str, capacity: int, kind: str, **kwargs):
