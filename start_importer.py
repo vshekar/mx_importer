@@ -1,7 +1,10 @@
 import argparse
-import yaml
 from pathlib import Path
+
+import yaml
+
 from import_pucks import start_app
+from lix_importer import start_app as start_lix_app
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -13,6 +16,12 @@ def init_argparse() -> argparse.ArgumentParser:
         "-v", "--version", action="version", version=f"{parser.prog} version 1.0.0"
     )
     parser.add_argument("config", help="yaml file containing the configuration")
+    parser.add_argument(
+        "--beamline",
+        dest="beamline",
+        help="importer for the beamline (MX or LIX), default is MX",
+        default="MX",
+    )
     return parser
 
 
@@ -28,11 +37,16 @@ def main() -> None:
             f"Configuration file {config_path} does not exist, please provide a valid config path"
         )
         return
-    
+
     try:
-        start_app(config_path)
+        if args.beamline == "MX":
+            start_app(config_path)
+        elif args.beamline == "LIX":
+            start_lix_app(config_path)
+        else:
+            raise NotImplementedError(f"Unrecognized beamline {args.beamline}")
     except Exception as e:
-        print(f'Exception occurred: {e}')
+        print(f"Exception occurred: {e}")
 
 
 if __name__ == "__main__":
