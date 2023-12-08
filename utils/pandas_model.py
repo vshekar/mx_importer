@@ -1,11 +1,13 @@
-from qtpy.QtCore import QAbstractTableModel, QModelIndex, Qt
-from qtpy.QtWidgets import QTableView
-from qtpy.QtGui import QColor
-import pandas as pd
-import typing
 import json
 import re
+import typing
 from typing import Dict, Tuple
+
+import numpy as np
+import pandas as pd
+from qtpy.QtCore import QAbstractTableModel, QModelIndex, Qt
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import QTableView
 
 
 class BasePandasModel(QAbstractTableModel):
@@ -45,7 +47,8 @@ class BasePandasModel(QAbstractTableModel):
             return None
 
         if role == Qt.ItemDataRole.DisplayRole or role == Qt.ItemDataRole.EditRole:
-            return str(self._dataframe.iloc[index.row(), index.column()])
+            data = self._dataframe.iloc[index.row(), index.column()]
+            return str(data) if not pd.isna(data) else ""
         if role == Qt.ItemDataRole.BackgroundRole:
             color = self.colors.get((index.row(), index.column()))
             if color is not None:

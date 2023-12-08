@@ -1,8 +1,9 @@
 import typing
-from PyQt5 import QtCore, QtGui
-from qtpy.QtWidgets import QTableView, QApplication, QMessageBox
-from qtpy.QtCore import Qt, QAbstractItemModel, QModelIndex
+
 import numpy as np
+from PyQt5 import QtCore, QtGui
+from qtpy.QtCore import QAbstractItemModel, QModelIndex, Qt
+from qtpy.QtWidgets import QApplication, QMessageBox, QTableView
 
 
 class TableWithCopy(QTableView):
