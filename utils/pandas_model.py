@@ -251,7 +251,7 @@ class PuckPandasModel(BasePandasModel):
         non_matching_rows = data[~data["samplename"].str.fullmatch(sampleNameRegex)]
         # replacing non-matching characters
         data["samplename"] = data["samplename"].apply(
-            lambda x: re.sub(r"[^0-9a-zA-Z-_]", "_", x)
+            lambda x: re.sub(r"[^0-9a-zA-Z-_]", "_", x) if isinstance(x, str) else ""
         )
 
         # truncate strings to the first 25 characters

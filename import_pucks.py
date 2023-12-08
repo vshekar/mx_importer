@@ -1,20 +1,32 @@
-from qtpy import QtWidgets
-from qtpy.QtGui import QColor, QIcon
-from typing import Tuple
-from qtpy.QtCore import Qt, QSize
-import sys
-import pandas as pd
-import numpy as np
+import getpass
+import grp
 import json
-from utils.pandas_model import PuckPandasModel, DewarPandasModel
-from utils.db_lib import DBConnection
-from gui.config import ConfigurationWindow
-from pathlib import Path
-import grp, os, getpass
-import yaml
-from gui.custom_table import TableWithCopy, DewarTableWithCopy
+import logging
+import os
+import sys
 import time
+import traceback
 from enum import Enum
+from pathlib import Path
+from typing import Tuple
+
+import numpy as np
+import pandas as pd
+import yaml
+from qtpy import QtWidgets
+from qtpy.QtCore import QSize, Qt
+from qtpy.QtGui import QColor, QIcon
+
+from gui.config import ConfigurationWindow
+from gui.custom_table import DewarTableWithCopy, TableWithCopy
+from utils.db_lib import DBConnection
+from utils.pandas_model import DewarPandasModel, PuckPandasModel
+
+logger = logging.getLogger(__name__)
+logfile_path = Path("~/.puckimporter/puckimporter.log").expanduser()
+logfile_path.parent.mkdir(parents=True, exist_ok=True)
+file_handler = logging.FileHandler(logfile_path)
+file_handler.setLevel(logging.INFO)
 
 
 class Mode(Enum):
@@ -29,6 +41,7 @@ class ControlMain(QtWidgets.QMainWindow):
             with self.config_path.open("r") as f:
                 config = yaml.safe_load(f)
         except Exception as e:
+            logger.error(f"TypeError: {traceback.format_exc()}")
             print(
                 f"Exception occured while reading config file {self.config_path}: {e}"
             )
@@ -135,16 +148,16 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.model._dataframe.to_excel(filepath, engine=engine, index=False)
 
     def identify_excel_format(self, file_path):
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             header = f.read(8)
-        
-        xls_header = b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1'
-        xlsx_header = b'\x50\x4B\x03\x04'
+
+        xls_header = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
+        xlsx_header = b"\x50\x4B\x03\x04"
 
         if header[:8] == xls_header:
-            return 'xlrd'
+            return "xlrd"
         elif header[:4] == xlsx_header[:4]:
-            return 'openpyxl'
+            return "openpyxl"
         else:
             return None
 
@@ -222,6 +235,7 @@ class ControlMain(QtWidgets.QMainWindow):
             self.showModalMessage("Success", "Validated excel sucessfully")
 
         except TypeError as e:
+            logger.error(f"TypeError: {traceback.format_exc()}")
             self.showModalMessage("Error", e)
 
     def showModalMessage(self, title, message):
@@ -237,6 +251,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.model.preprocessData()
                 self.model.validateData(self.config)
         except Exception as e:
+            logger.error(f"TypeError: {traceback.format_exc()}")
             self.showModalMessage(
                 "Error", f"Data not validated, will not upload.\nException: {e}"
             )
