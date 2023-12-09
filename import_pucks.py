@@ -96,11 +96,13 @@ class ControlMain(QtWidgets.QMainWindow):
             self.pucklists["whitelist"] = self.get_sheet_data(reader, "white_list")
             self.pucklists["blacklist"] = self.get_sheet_data(reader, "black_list")
 
-
     def get_sheet_data(self, reader: pd.ExcelFile, sheet):
-        df = reader.parse(sheet_name=sheet, header=None,)
+        df = reader.parse(
+            sheet_name=sheet,
+            header=None,
+        )
         if len(df.columns) > 0:
-            return df.iloc[:,0].to_list()
+            return df.iloc[:, 0].to_list()
         else:
             return []
 
@@ -366,7 +368,7 @@ class ControlMain(QtWidgets.QMainWindow):
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
-            # dataMenu.addAction(self.configWindowAction)
+            dataMenu.addAction(self.configWindowAction)
             menuBar.addMenu(dewarScanMenu)
             dewarScanMenu.addAction(self.beginDewarScanAction)
 

@@ -273,8 +273,16 @@ class PuckPandasModel(BasePandasModel):
         column_index = data.columns.get_loc("puckname")
 
         missingPucks = set()
+        allowedPucks = set()
+
         if not config.get("disable_whitelist", False):
-            missingPucks = enteredPucks - set(masterList["whitelist"]+ masterList["etched"])
+            allowedPucks.update(set(masterList["whitelist"]))
+
+        if not config.get("disable_etchedlist", False):
+            allowedPucks.update(set(masterList["etched"]))
+
+        if allowedPucks:
+            missingPucks = enteredPucks - allowedPucks
 
             # data["puckname"].fillna('MISSING', inplace=True)
             indices = []
