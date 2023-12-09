@@ -70,13 +70,39 @@ class ControlMain(QtWidgets.QMainWindow):
                 "Error",
                 f"Puck list file {pucklist_path} not found. White list and black list are empty",
             )
-            self.pucklists = {"blacklist": [], "whitelist": []}
+            self.pucklists = {"blacklist": [], "whitelist": [], "etched": []}
         else:
-            with pucklist_path.open("r") as f:
+            self.parsePuckList(pucklist_path)
+
+    def parsePuckList(self, path: Path):
+        parse_excel = False
+        if path.suffix == ".json":
+            with path.open("r") as f:
                 self.pucklists = json.load(f)
-                for label in ["whitelist", "blacklist"]:
+                for label in ["whitelist", "blacklist", "etched"]:
                     if label not in self.pucklists.keys():
                         self.pucklists[label] = []
+        elif path.suffix == ".xlsx":
+            engine = "openpyxl"
+            parse_excel = True
+        elif path.suffix == ".xls":
+            engine = "xlrd"
+            parse_excel = True
+
+        if parse_excel:
+            self.pucklists = {}
+            reader = pd.ExcelFile(path, engine=engine)
+            self.pucklists["etched"] = self.get_sheet_data(reader, "etched")
+            self.pucklists["whitelist"] = self.get_sheet_data(reader, "white_list")
+            self.pucklists["blacklist"] = self.get_sheet_data(reader, "black_list")
+
+
+    def get_sheet_data(self, reader: pd.ExcelFile, sheet):
+        df = reader.parse(sheet_name=sheet, header=None,)
+        if len(df.columns) > 0:
+            return df.iloc[:,0].to_list()
+        else:
+            return []
 
     def _createActions(self):
         # File menu actions
@@ -340,7 +366,7 @@ class ControlMain(QtWidgets.QMainWindow):
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
-            dataMenu.addAction(self.configWindowAction)
+            # dataMenu.addAction(self.configWindowAction)
             menuBar.addMenu(dewarScanMenu)
             dewarScanMenu.addAction(self.beginDewarScanAction)
 

@@ -119,7 +119,7 @@ class PuckPandasModel(BasePandasModel):
         self.resetColors()
         if not self._matchMasterlist(self._dataframe, config):
             raise TypeError(
-                "Pucks submitted do not match master list. Blacklisted pucks in red and pucks not in whitelist are yellow"
+                "Pucks submitted do not match master list. Pucks not in whitelist or etched list are in yellow. Pucks in blacklist are in red"
             )
 
         if not self._checkSampleNames(self._dataframe):
@@ -274,7 +274,7 @@ class PuckPandasModel(BasePandasModel):
 
         missingPucks = set()
         if not config.get("disable_whitelist", False):
-            missingPucks = enteredPucks - set(masterList["whitelist"])
+            missingPucks = enteredPucks - set(masterList["whitelist"]+ masterList["etched"])
 
             # data["puckname"].fillna('MISSING', inplace=True)
             indices = []
