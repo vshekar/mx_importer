@@ -127,9 +127,9 @@ class ConfigurationWindow(QDialog):
     def write_to_excel(self, list_path, puck_list):
         with pd.ExcelWriter(list_path, engine="auto", mode="w") as writer:
             for internal_key, external_key in {
+                "etched": "etched",
                 "whitelist": "white_list",
                 "blacklist": "black_list",
-                "etched": "etched",
             }.items():
                 # Ensure the list is not empty
                 if not puck_list[internal_key]:
