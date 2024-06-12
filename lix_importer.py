@@ -6,7 +6,7 @@ import sys
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -16,10 +16,17 @@ from qtpy.QtCore import QSize, Qt
 from qtpy.QtGui import QColor, QIcon
 
 from gui.config import ConfigurationWindow
-from gui.custom_table import DewarTableWithCopy, TableWithCopy
+from gui.custom_table import LIXTableWithCopy
+from gui.deligate import CheckBoxDelegate, ComboBoxDelegate, MixingDelegate
+from gui.dialogs.lix_sample_plate_export import LixSamplePlateExportDialog
 from utils.db_lib import DBConnection
+from utils.lix_models import (
+    LIXHolderPandasModel,
+    LIXPlatePandasModel,
+    make_plate_QR_code,
+    write_excel,
+)
 from utils.pandas_model import DewarPandasModel, PuckPandasModel
-from utils.lix_models import LIXPlatePandasModel
 
 
 class Mode(Enum):
@@ -41,8 +48,8 @@ class ControlMain(QtWidgets.QMainWindow):
         self.config = config
         super().__init__(*args, **kwargs)
         self.setWindowTitle(f"Import sample information @ LIX")
-        self.tableView = self._createTableView()
-        self.setCentralWidget(self.tableView)
+        self.tabView = QtWidgets.QTabWidget()
+        self.setCentralWidget(self.tabView)
         self._createActions()
         self._createMenuBar()
         self.model = None
@@ -51,6 +58,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self.status_bar = self.statusBar()
         self.mode_status = QtWidgets.QLabel(f"MODE: {self.mode.value}")
         self.status_bar.addPermanentWidget(self.mode_status)
+        self.well_names = "ABCDEFGH"
         # Default mode to start the application
         self._set_mode(Mode.MANUAL)
 
@@ -62,10 +70,16 @@ class ControlMain(QtWidgets.QMainWindow):
         self.exitAction.triggered.connect(QtWidgets.QApplication.quit)
 
         # Puck menu actions
-        self.importExcelAction = QtWidgets.QAction("&Import Plate spreadsheet file", self)
+        self.importExcelAction = QtWidgets.QAction(
+            "&Import Plate spreadsheet file", self
+        )
         self.importExcelAction.triggered.connect(lambda: self.importExcel("plate"))
-        self.importHolderExcelAction = QtWidgets.QAction("&Import holder spreadsheet file", self)
-        self.importHolderExcelAction.triggered.connect(lambda: self.importExcel("holder"))
+        self.importHolderExcelAction = QtWidgets.QAction(
+            "&Import holder spreadsheet file", self
+        )
+        self.importHolderExcelAction.triggered.connect(
+            lambda: self.importExcel("holder")
+        )
         self.validateExcelAction = QtWidgets.QAction(
             "&Validate imported Excel file", self
         )
@@ -80,17 +94,27 @@ class ControlMain(QtWidgets.QMainWindow):
         self.mode_status.setText(f"MODE: {self.mode.value}")
 
     def saveExcel(self):
+        dialog = LixSamplePlateExportDialog()
+        if dialog.exec_() == QtWidgets.QDialog.DialogCode.Accepted:
+            proposal_id, saf_id, plate_id = dialog.get_values()
+            print(f"Proposal ID: {proposal_id}, SAF ID: {saf_id}, Plate ID: {plate_id}")
+            self.generateExcel(proposal_id, saf_id, plate_id)
+        else:
+            print("Dialog canceled.")
+
+    def generateExcel(self, proposal_id, saf_id, plate_id):
         filepath, _ = QtWidgets.QFileDialog().getSaveFileName(self, "Save file")
         if filepath:
             filepath = Path(filepath)
             if not filepath.suffix:
                 filepath = filepath.parent / (filepath.name + ".xlsx")
-            engine = "openpyxl"
-            if filepath.suffix == "xls":
-                engine = "xlrd"
 
-            if self.model:
-                self.model._dataframe.to_excel(filepath, engine=engine, index=False)
+            sheet_name, barcode_path = make_plate_QR_code(
+                proposal_id, saf_id, plate_id, filepath.parent
+            )
+
+            if self._dataframe is not None:
+                write_excel(self._dataframe, filepath, sheet_name, barcode_path)
 
     def importExcel(self, excel_type: str):
         dialog = QtWidgets.QFileDialog()
@@ -100,29 +124,100 @@ class ControlMain(QtWidgets.QMainWindow):
             self, "Import file", filter="Excel (*.xls *.xlsx)"
         )
         if filename:
-            excel_file = pd.ExcelFile(filename)
-            for sheet_name in excel_file.sheet_names:
-                data: "pd.DataFrame" = excel_file.parse(sheet_name)
-                if data.empty:
-                    continue
-                # Check if any row besides header row contains "puckname"
-                rows = (data.applymap(lambda x: str(x).lower() == "puckname")).any(
-                    axis=1
+            if excel_type == "plate":
+                self.parseExcel(filename)
+            elif excel_type == "holder":
+                self.parseHolderExcel(filename)
+            else:
+                raise Exception("Unrecognized input file type")
+
+    def parseHolderExcel(self, filename):
+        excel_file = pd.ExcelFile(filename)
+        self.tables: Dict[str, LIXTableWithCopy] = {}
+        self.models = {}
+        self.tabView.clear()
+        for sheet_name in excel_file.sheet_names:
+            data: "pd.DataFrame" = excel_file.parse(sheet_name)
+            if data.empty:
+                continue
+            self._dataframe = data
+            mask = self._dataframe["holderName"].notna() & (
+                self._dataframe["holderName"] != ""
+            )
+            start_index, end_index = None, None
+            for index in self._dataframe[mask].index:
+                if start_index is None:
+                    start_index = index
+                else:
+                    end_index = index
+                    self.addHolderTable(start_index, end_index)
+                    start_index = index
+            self.addHolderTable(start_index, self._dataframe.index[-1])
+            break
+
+    def addHolderTable(self, start_index, end_index):
+        filtered_data = self._dataframe.iloc[start_index:end_index]
+        holder_name = self._dataframe["holderName"].iloc[start_index]
+        model = LIXHolderPandasModel(filtered_data, holder_name=holder_name)
+        self.addTableTab(model, holder_name)
+
+    def addTableTab(self, model, title):
+        table_view = self._createTableView()
+        table_view.setModel(model)
+        self.tabView.addTab(table_view, title)
+        self.tables[title] = table_view
+
+    def parseExcel(self, filename):
+        excel_file = pd.ExcelFile(filename)
+        self.tables: Dict[str, LIXTableWithCopy] = {}
+        self.models = {}
+        for sheet_name in excel_file.sheet_names:
+            data: "pd.DataFrame" = excel_file.parse(sheet_name)
+            if data.empty:
+                continue
+            # self.model = LIXPlatePandasModel(data)
+            self._dataframe = data
+            for well_name in self.well_names:
+                filtered_data = data[data["Well"].str.startswith(well_name, na=False)]
+                model = LIXPlatePandasModel(filtered_data, well_name=well_name)
+                self.validateModel(model)
+                table_view = self._createTableView()
+                table_view.setModel(model)
+                table_view.setItemDelegateForColumn(
+                    filtered_data.columns.get_loc("Stock"), CheckBoxDelegate(self)
+                )
+                table_view.buffer_combobox = ComboBoxDelegate(self)
+                table_view.setItemDelegateForColumn(
+                    filtered_data.columns.get_loc("Buffer"), table_view.buffer_combobox
+                )
+                table_view.buffer_combobox.setItems(
+                    [""]
+                    + filtered_data[
+                        filtered_data["Stock"].isna() & ~filtered_data["Sample"].isna()
+                    ]["Sample"].to_list()
                 )
 
-                self.model = LIXPlatePandasModel(data)
-                self.validateExcel()
-                self.tableView.setModel(self.model)
-                break
-            self.tableView.resizeColumnsToContents()
+                table_view.mixing_delegate = MixingDelegate(self)
+                table_view.setItemDelegateForColumn(
+                    data.columns.get_loc("Mixing"), table_view.mixing_delegate
+                )
+                table_view.resizeColumnsToContents()
+                self.tabView.addTab(table_view, well_name)
+                self.tables[well_name] = table_view
+            break
 
     def validateExcel(self):
-        if not isinstance(self.model, LIXPlatePandasModel):
+        for table_view in self.tables.values():
+            self.validateModel(table_view.model())
+
+    def validateModel(self, model):
+        if not isinstance(model, LIXPlatePandasModel):
             return
         try:
-            # self.model.preprocessData()
-            self.model.validateData(self.config)
-            self.showModalMessage("Success", "Validated excel sucessfully")
+            model.checkValidTemplate()
+            model.preprocessData()
+            model.validateData(self.config)
+            # self.showModalMessage("Success", "Validated excel sucessfully")
 
         except TypeError as e:
             self.showModalMessage("Error", e)
@@ -218,6 +313,7 @@ class ControlMain(QtWidgets.QMainWindow):
         dataMenu.addActions(
             [
                 self.importExcelAction,
+                self.importHolderExcelAction,
                 self.validateExcelAction,
                 self.submitPuckDataAction,
             ]
@@ -231,10 +327,7 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def _createTableView(self, dewar=False):
         # view = QtWidgets.QTableView()
-        if dewar:
-            view = DewarTableWithCopy()
-        else:
-            view = TableWithCopy()
+        view = LIXTableWithCopy()
         view.resize(1200, 1200)
         view.horizontalHeader().setStretchLastSection(True)
         view.setAlternatingRowColors(True)
@@ -255,5 +348,6 @@ def start_app(config_path):
     app = QtWidgets.QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(Path.cwd() / Path("gui/assets/icon.png"))))
     ex = ControlMain(config_path=config_path)
+    ex.parseExcel("/Users/vshekar/Code/mx_importer/plate_spreadsheet_example.xlsx")
     ex.show()
     sys.exit(app.exec_())

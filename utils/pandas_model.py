@@ -16,7 +16,7 @@ class BasePandasModel(QAbstractTableModel):
     def __init__(self, dataframe: pd.DataFrame, parent=None) -> None:
         QAbstractTableModel.__init__(self, parent)
         self.validData = False
-        self._dataframe = dataframe.dropna(how="all").reset_index(drop=True)
+        self._dataframe = dataframe
         self.colors: Dict[Tuple[int, int], QColor] = {}
 
     def rowCount(self, parent=QModelIndex()) -> int:
@@ -104,6 +104,10 @@ class BasePandasModel(QAbstractTableModel):
 
 class PuckPandasModel(BasePandasModel):
     """A model to interface a Qt view with pandas dataframe"""
+
+    def __init__(self, dataframe: pd.DataFrame, parent=None) -> None:
+        super().__init__(dataframe, parent)
+        self._dataframe = self._dataframe.dropna(how="all").reset_index(drop=True)
 
     def setPuckLists(self, pucklist):
         self.puckList = pucklist

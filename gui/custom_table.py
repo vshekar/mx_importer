@@ -1,9 +1,12 @@
-import typing
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from PyQt5 import QtCore, QtGui
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, Qt
 from qtpy.QtWidgets import QApplication, QMessageBox, QTableView
+
+if TYPE_CHECKING:
+    from gui.deligate import ComboBoxDelegate, MixingDelegate
 
 
 class TableWithCopy(QTableView):
@@ -93,3 +96,10 @@ class TableWithCopy(QTableView):
 
 class DewarTableWithCopy(TableWithCopy):
     pass
+
+
+class LIXTableWithCopy(TableWithCopy):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.buffer_combobox: Optional[ComboBoxDelegate] = None  # For LIX tables
+        self.mixing_delegate: Optional[MixingDelegate] = None
