@@ -1,5 +1,11 @@
+import typing
+
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QComboBox, QItemDelegate
+
+if typing.TYPE_CHECKING:
+    from lix_importer import ControlMain
+    from utils.lix_models import LIXHolderPandasModel, LIXPlatePandasModel
 
 
 class ComboBoxDelegate(QItemDelegate):
@@ -13,7 +19,11 @@ class ComboBoxDelegate(QItemDelegate):
     def createEditor(self, parent, option, index):
         # Create the combo box editor
         editor = QComboBox(parent)
+        current_model: "LIXPlatePandasModel | LIXHolderPandasModel" = (
+            self.parent().tabView.widget(self.parent().tabView.currentIndex()).model()
+        )
         # Populate the combo box
+        self.items = [""] + current_model.get_current_samples()
         editor.addItems(self.items)
         return editor
 

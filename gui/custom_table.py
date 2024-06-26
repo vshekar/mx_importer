@@ -103,3 +103,22 @@ class LIXTableWithCopy(TableWithCopy):
         super().__init__(*args, **kwargs)
         self.buffer_combobox: Optional[ComboBoxDelegate] = None  # For LIX tables
         self.mixing_delegate: Optional[MixingDelegate] = None
+
+    def setModel(self, model: QAbstractItemModel) -> None:
+        super().setModel(model)
+        # model.dataChanged.connect(self.update_buffer_combobox)
+
+    def update_buffer_combobox(self, topLeft, bottomRight, roles):
+        changedColumn = topLeft.column()
+        changedRow = topLeft.row()
+        if changedColumn == self.model().getColumnIndex("Sample"):
+            if self.buffer_combobox:
+                self.buffer_combobox.setItems([""] + self.model().get_current_samples())
+
+    def update_mixing_delegate(self, topLeft, bottomRight, roles):
+        changedColumn = topLeft.column()
+        # if changedColumn == self.model().getColumnIndex("Volume"):
+
+
+class LIXHolderTableWithCopy(TableWithCopy):
+    pass

@@ -16,7 +16,7 @@ from qtpy.QtCore import QSize, Qt
 from qtpy.QtGui import QColor, QIcon
 
 from gui.config import ConfigurationWindow
-from gui.custom_table import LIXTableWithCopy
+from gui.custom_table import LIXHolderTableWithCopy, LIXTableWithCopy
 from gui.deligate import CheckBoxDelegate, ComboBoxDelegate, MixingDelegate
 from gui.dialogs.lix_sample_plate_export import LixSamplePlateExportDialog
 from utils.db_lib import DBConnection
@@ -66,6 +66,10 @@ class ControlMain(QtWidgets.QMainWindow):
         # File menu actions
         self.saveExcelAction = QtWidgets.QAction("&Save table as Excel file", self)
         self.saveExcelAction.triggered.connect(self.saveExcel)
+        self.newPlateAction = QtWidgets.QAction("&Create new plate", self)
+        self.newPlateAction.triggered.connect(self.createNewPlate)
+        self.newHolderAction = QtWidgets.QAction("&Create new holder", self)
+        self.newHolderAction.triggered.connect(self.createNewHolder)
         self.exitAction = QtWidgets.QAction("&Exit", self)
         self.exitAction.triggered.connect(QtWidgets.QApplication.quit)
 
@@ -92,6 +96,18 @@ class ControlMain(QtWidgets.QMainWindow):
     def _set_mode(self, mode):
         self.mode = mode
         self.mode_status.setText(f"MODE: {self.mode.value}")
+
+    def createNewPlate(self):
+        spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(
+            "plate_spreadsheet_default.xlsx"
+        )
+        self.parseExcel(str(spreadsheet_path))
+
+    def createNewHolder(self):
+        spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(
+            "holder_spreadsheet_default.xlsx"
+        )
+        self.parseHolderExcel(str(spreadsheet_path))
 
     def saveExcel(self):
         dialog = LixSamplePlateExportDialog()
@@ -133,16 +149,25 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def parseHolderExcel(self, filename):
         excel_file = pd.ExcelFile(filename)
-        self.tables: Dict[str, LIXTableWithCopy] = {}
+        self.tables: Dict[str, LIXHolderTableWithCopy] = {}
         self.models = {}
         self.tabView.clear()
+        holder_index = 0
         for sheet_name in excel_file.sheet_names:
             data: "pd.DataFrame" = excel_file.parse(sheet_name)
             if data.empty:
                 continue
             self._dataframe = data
+
             mask = self._dataframe["holderName"].notna() & (
                 self._dataframe["holderName"] != ""
+            )
+            self._dataframe["volume"] = self._dataframe["volume"].fillna(0).astype(int)
+            self._dataframe["sampleName"] = (
+                self._dataframe["sampleName"].fillna("").astype(str)
+            )
+            self._dataframe["bufferName"] = (
+                self._dataframe["bufferName"].fillna("").astype(str)
             )
             start_index, end_index = None, None
             for index in self._dataframe[mask].index:
@@ -150,19 +175,32 @@ class ControlMain(QtWidgets.QMainWindow):
                     start_index = index
                 else:
                     end_index = index
-                    self.addHolderTable(start_index, end_index)
+                    self.addHolderTable(start_index, end_index, holder_index)
+                    holder_index += 1
                     start_index = index
-            self.addHolderTable(start_index, self._dataframe.index[-1])
+            self.addHolderTable(
+                start_index, self._dataframe.index[-1] + 1, holder_index
+            )
             break
 
-    def addHolderTable(self, start_index, end_index):
+    def addHolderTable(self, start_index, end_index, holder_index):
         filtered_data = self._dataframe.iloc[start_index:end_index]
         holder_name = self._dataframe["holderName"].iloc[start_index]
-        model = LIXHolderPandasModel(filtered_data, holder_name=holder_name)
+        model = LIXHolderPandasModel(
+            filtered_data, holder_index, holder_name=holder_name
+        )
+        model.updated_holder_name.connect(self.updateTabName)
         self.addTableTab(model, holder_name)
+
+    def updateTabName(self, tab_index, new_tab_name):
+        self.tabView.setTabText(tab_index, new_tab_name)
 
     def addTableTab(self, model, title):
         table_view = self._createTableView()
+        table_view.setItemDelegateForColumn(
+            model.getColumnIndex("bufferName"), ComboBoxDelegate(self)
+        )
+        table_view.buffer_combobox = ComboBoxDelegate(self)
         table_view.setModel(model)
         self.tabView.addTab(table_view, title)
         self.tables[title] = table_view
@@ -171,6 +209,7 @@ class ControlMain(QtWidgets.QMainWindow):
         excel_file = pd.ExcelFile(filename)
         self.tables: Dict[str, LIXTableWithCopy] = {}
         self.models = {}
+        self.tabView.clear()
         for sheet_name in excel_file.sheet_names:
             data: "pd.DataFrame" = excel_file.parse(sheet_name)
             if data.empty:
@@ -304,18 +343,23 @@ class ControlMain(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         # Creating menus using a QMenu object
         fileMenu = QtWidgets.QMenu("&File", self)
-        dataMenu = QtWidgets.QMenu("&Puck Import", self)
-        dewarScanMenu = QtWidgets.QMenu("&Shipping Dewar", self)
+        dataMenu = QtWidgets.QMenu("&Data Import", self)
         menuBar.addMenu(fileMenu)
         menuBar.addMenu(dataMenu)
-        fileMenu.addActions([self.saveExcelAction, self.exitAction])
+        fileMenu.addActions(
+            [
+                self.saveExcelAction,
+                self.exitAction,
+                self.newPlateAction,
+                self.newHolderAction,
+            ]
+        )
 
         dataMenu.addActions(
             [
                 self.importExcelAction,
                 self.importHolderExcelAction,
                 self.validateExcelAction,
-                self.submitPuckDataAction,
             ]
         )
 
@@ -323,7 +367,6 @@ class ControlMain(QtWidgets.QMainWindow):
             grp.getgrgid(g).gr_name for g in os.getgroups()
         ]:
             dataMenu.addAction(self.configWindowAction)
-            menuBar.addMenu(dewarScanMenu)
 
     def _createTableView(self, dewar=False):
         # view = QtWidgets.QTableView()
@@ -348,6 +391,9 @@ def start_app(config_path):
     app = QtWidgets.QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(Path.cwd() / Path("gui/assets/icon.png"))))
     ex = ControlMain(config_path=config_path)
-    ex.parseExcel("/Users/vshekar/Code/mx_importer/plate_spreadsheet_example.xlsx")
+    spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(
+        "holder_spreadsheet_default.xlsx"
+    )
+    ex.parseHolderExcel(str(spreadsheet_path))
     ex.show()
     sys.exit(app.exec_())

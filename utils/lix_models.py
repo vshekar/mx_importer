@@ -9,7 +9,7 @@ from openpyxl.drawing.image import Image
 from PIL import Image as PILImage
 from qrcode.constants import ERROR_CORRECT_L
 from qrcode.main import QRCode
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtGui import QColor
 
 from utils.pandas_model import BasePandasModel
@@ -261,11 +261,74 @@ class LIXPlatePandasModel(BasePandasModel):
         }
         return remaining_volume
 
+    def get_current_samples(self):
+        return self._dataframe[
+            self._dataframe["Stock"].isna() & ~self._dataframe["Sample"].isna()
+        ]["Sample"].to_list()
+
 
 class LIXHolderPandasModel(BasePandasModel):
-    def __init__(self, dataframe: pd.DataFrame, parent=None, holder_name=None) -> None:
+    updated_holder_name = Signal(int, str)
+
+    def __init__(
+        self, dataframe: pd.DataFrame, holder_index, parent=None, holder_name=None
+    ) -> None:
         self.holder_name = holder_name
+        self.holder_index = holder_index
+        self.editable_cells = {(0, 0)}
+
         super().__init__(dataframe, parent)
+        self.dataChanged.connect(self.updateItems)
+
+    def flags(self, index):
+        defaultFlags = super(BasePandasModel, self).flags(index)
+        if ((index.row(), index.column()) in self.editable_cells) or index.column() in (
+            2,
+            3,
+            4,
+        ):
+            return (
+                Qt.ItemFlag.ItemIsSelectable
+                | Qt.ItemFlag.ItemIsEnabled
+                | Qt.ItemFlag.ItemIsEditable
+            )
+        else:
+            return defaultFlags & ~Qt.ItemFlag.ItemIsEditable
+
+    def getColumnIndex(self, column_name):
+        return self._dataframe.columns.get_loc(column_name)
+
+    def updateItems(self, topLeft, bottomRight, roles):
+        changedColumn = topLeft.column()
+        changedRow = topLeft.row()
+
+        if changedColumn == self.getColumnIndex("holderName") and changedRow == 0:
+            self.holder_name = self._dataframe.iloc[changedRow, changedColumn]
+            self.updated_holder_name.emit(self.holder_index, self.holder_name)
+
+    def get_current_samples(self):
+        return self._dataframe[~self._dataframe["sampleName"].isna()][
+            "sampleName"
+        ].unique()
+
+    def setData(self, index, value, role: int) -> bool:
+        if role == Qt.ItemDataRole.EditRole:
+            column_type = self._dataframe.dtypes.iloc[index.column()]
+            try:
+                # Try to cast the value to the column type
+                value = column_type.type(value)
+            except (ValueError, TypeError):
+                # If casting fails, do not update the DataFrame
+                return False
+
+            if index.column() == self.getColumnIndex("volume"):
+                if self._dataframe["sampleName"].iloc[index.row()] == "":
+                    return False
+
+            self._dataframe.iloc[index.row(), index.column()] = value
+            self.dataChanged.emit(index, index, [role])
+            return True
+        return False
 
 
 def make_plate_QR_code(proposal_id, SAF_id, plate_id, path):
