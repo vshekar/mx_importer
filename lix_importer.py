@@ -270,9 +270,9 @@ class ControlMain(QtWidgets.QMainWindow):
         menuBar = self.menuBar()
         # Creating menus using a QMenu object
         fileMenu = QtWidgets.QMenu("&File", self)
-        # dataMenu = QtWidgets.QMenu("&Data Import", self)
+        dataMenu = QtWidgets.QMenu("&Data Import", self)
         menuBar.addMenu(fileMenu)
-        menuBar.addMenu(dataMenu)
+        # menuBar.addMenu(dataMenu)
         fileMenu.addActions(
             [
                 self.saveExcelAction,
