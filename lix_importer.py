@@ -19,7 +19,6 @@ from gui.config import ConfigurationWindow
 from gui.custom_table import LIXHolderTableWithCopy, LIXTableWithCopy
 from gui.deligate import CheckBoxDelegate, ComboBoxDelegate, MixingDelegate
 from gui.dialogs.lix_sample_plate_export import LixSamplePlateExportDialog
-from utils.db_lib import DBConnection
 from utils.lix_models import (
     LIXHolderPandasModel,
     LIXPlatePandasModel,
@@ -89,7 +88,6 @@ class ControlMain(QtWidgets.QMainWindow):
         )
         self.validateExcelAction.triggered.connect(self.validateExcel)
         self.submitPuckDataAction = QtWidgets.QAction("&Submit Puck data", self)
-        self.submitPuckDataAction.triggered.connect(self.submitPuckData)
         self.configWindowAction = QtWidgets.QAction("&Configuration", self)
         self.configWindowAction.triggered.connect(self.openConfigWindow)
 
@@ -267,77 +265,6 @@ class ControlMain(QtWidgets.QMainWindow):
         self.msg.setModal(True)
         self.msg.setWindowTitle(title)
         self.msg.show()
-
-    def submitPuckData(self):
-        try:
-            if isinstance(self.model, PuckPandasModel):
-                self.model.preprocessData()
-                self.model.validateData(self.config)
-        except Exception as e:
-            self.showModalMessage(
-                "Error", f"Data not validated, will not upload.\nException: {e}"
-            )
-            return
-
-        if isinstance(self.model, PuckPandasModel):
-            beamline_id = self.config.get("beamline", "99id1").lower()
-            dbConnection = DBConnection(
-                beamline_id=beamline_id,
-                host=self.config.get(
-                    "database_host", os.environ.get("MONGODB_HOST", "localhost")
-                ),
-                owner=self.owner,
-            )
-            self.progress_dialog = QtWidgets.QProgressDialog(
-                "Uploading Puck data...",
-                "Cancel",
-                0,
-                self.model.rowCount(),
-                self,
-            )
-            # self.progress_dialog.setModal(True)
-            self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-            prevPuckName = None
-            puck_id = None
-            self.currentPucks = set()
-            self.progress_dialog.show()
-            self.progress_dialog.setValue(0)
-            time.sleep(
-                0.25
-            )  # Dumb sleep because progress dialog doesn't initialize fast enough
-            for i, row in enumerate(self.model.rows()):
-                print(f"Processing row {i}")
-                self.progress_dialog.setValue(i + 1)
-                if self.progress_dialog.wasCanceled():
-                    break
-                # Check if puck exists, otherwise create one
-                if row["puckname"] != prevPuckName:
-                    puck_id = dbConnection.getOrCreateContainerID(
-                        row["puckname"], 16, "16_pin_puck"
-                    )
-                    prevPuckName = row["puckname"]
-
-                # Create sample
-                sampleName: str = row["samplename"]
-                model = row["model"]
-                seq = row["sequence"]
-                propNum = row["proposalnum"]
-                sampleID = dbConnection.createSample(
-                    str(sampleName),
-                    "pin",
-                    model=None if pd.isna(model) else str(model),
-                    sequence=None if pd.isna(seq) else str(seq),
-                    proposalID=propNum,
-                    container=puck_id,
-                )
-                if puck_id not in self.currentPucks:
-                    dbConnection.emptyContainer(puck_id)
-                    self.currentPucks.add(puck_id)
-                dbConnection.insertIntoContainer(
-                    puck_id, int(row["position"]) - 1, sampleID
-                )
-        else:
-            self.showModalMessage("Error", "Invalid data, will not upload to database")
 
     def _createMenuBar(self):
         menuBar = self.menuBar()
