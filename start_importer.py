@@ -3,9 +3,6 @@ from pathlib import Path
 
 import yaml
 
-from import_pucks import start_app
-from lix_importer import start_app as start_lix_app
-
 
 def init_argparse() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -40,8 +37,12 @@ def main() -> None:
 
     try:
         if args.beamline == "MX":
+            from import_pucks import start_app
+
             start_app(config_path)
         elif args.beamline == "LIX":
+            from lix_importer import start_app as start_lix_app
+
             start_lix_app(config_path)
         else:
             raise NotImplementedError(f"Unrecognized beamline {args.beamline}")
