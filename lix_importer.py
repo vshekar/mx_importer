@@ -272,7 +272,7 @@ class ControlMain(QtWidgets.QMainWindow):
         fileMenu = QtWidgets.QMenu("&File", self)
         dataMenu = QtWidgets.QMenu("&Data Import", self)
         menuBar.addMenu(fileMenu)
-        # menuBar.addMenu(dataMenu)
+        menuBar.addMenu(dataMenu)
         fileMenu.addActions(
             [
                 self.saveExcelAction,
