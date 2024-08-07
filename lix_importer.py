@@ -18,6 +18,11 @@ from qtpy.QtGui import QColor, QIcon
 from gui.config import ConfigurationWindow
 from gui.custom_table import LIXHolderTableWithCopy, LIXTableWithCopy
 from gui.deligate import CheckBoxDelegate, ComboBoxDelegate, MixingDelegate
+from gui.dialogs.add_holder_dialog import (
+    AddHolderDialog,
+    GenerateHolderQRCodeDialog,
+    ManageHoldersDialog,
+)
 from gui.dialogs.lix_sample_plate_export import LixSamplePlateExportDialog
 from utils.lix_models import (
     LIXHolderPandasModel,
@@ -90,6 +95,10 @@ class ControlMain(QtWidgets.QMainWindow):
         self.submitPuckDataAction = QtWidgets.QAction("&Submit Puck data", self)
         self.configWindowAction = QtWidgets.QAction("&Configuration", self)
         self.configWindowAction.triggered.connect(self.openConfigWindow)
+        self.addHolderAction = QtWidgets.QAction("&Add holder", self)
+        self.addHolderAction.triggered.connect(self.add_holder_to_ui)
+        self.generateHolderQRCodeAction = QtWidgets.QAction("&Generate QR Code")
+        self.generateHolderQRCodeAction.triggered.connect(self.generate_holder_qr_code)
 
     def _set_mode(self, mode):
         self.mode = mode
@@ -106,6 +115,27 @@ class ControlMain(QtWidgets.QMainWindow):
             "holder_spreadsheet_default.xlsx"
         )
         self.parseHolderExcel(str(spreadsheet_path))
+
+    def add_holder_to_ui(self):
+        # dialog = AddHolderDialog()
+        dialog = ManageHoldersDialog(self.tabView)
+        result = dialog.exec_()
+
+        if result == QtWidgets.QDialog.Accepted:
+            text = dialog.get_text()
+            print(f"Input text: {text}")
+        else:
+            print("Dialog canceled")
+
+    def generate_holder_qr_code(self):
+        dialog = GenerateHolderQRCodeDialog()
+        result = dialog.exec_()
+
+        if result == QtWidgets.QDialog.Accepted:
+            text = dialog.get_text()
+            print(f"Input text: {text}")
+        else:
+            print("Dialog canceled")
 
     def saveExcel(self):
         dialog = LixSamplePlateExportDialog()
@@ -181,9 +211,13 @@ class ControlMain(QtWidgets.QMainWindow):
             )
             break
 
-    def addHolderTable(self, start_index, end_index, holder_index):
+    def addHolderTable(self, start_index, end_index, holder_index, holder_name=None):
         filtered_data = self._dataframe.iloc[start_index:end_index]
-        holder_name = self._dataframe["holderName"].iloc[start_index]
+        holder_name = (
+            self._dataframe["holderName"].iloc[start_index]
+            if holder_name is None
+            else holder_name
+        )
         model = LIXHolderPandasModel(
             filtered_data, holder_index, holder_name=holder_name
         )
@@ -271,8 +305,10 @@ class ControlMain(QtWidgets.QMainWindow):
         # Creating menus using a QMenu object
         fileMenu = QtWidgets.QMenu("&File", self)
         dataMenu = QtWidgets.QMenu("&Data Import", self)
+        sampleHolderMenu = QtWidgets.QMenu("&Sample Holder", self)
         menuBar.addMenu(fileMenu)
         menuBar.addMenu(dataMenu)
+        menuBar.addMenu(sampleHolderMenu)
         fileMenu.addActions(
             [
                 self.saveExcelAction,
@@ -288,6 +324,10 @@ class ControlMain(QtWidgets.QMainWindow):
                 self.importHolderExcelAction,
                 self.validateExcelAction,
             ]
+        )
+
+        sampleHolderMenu.addActions(
+            [self.addHolderAction, self.generateHolderQRCodeAction]
         )
 
         if self.config["admin_group"] in [
