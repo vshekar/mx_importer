@@ -313,14 +313,19 @@ class ControlMain(QtWidgets.QMainWindow):
             yaml.safe_dump(self.config, f)
 
 
-def start_app(config_path):
-    print("Starting LIX")
+def start_app(config_path, container_type="holder"):
+    print("Starting LIX Holder App")
     app = QtWidgets.QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(Path.cwd() / Path("gui/assets/icon.png"))))
     ex = ControlMain(config_path=config_path)
-    spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(
-        "holder_spreadsheet_default.xlsx"
-    )
-    ex.parseHolderExcel(str(spreadsheet_path))
+    if container_type == "holder":
+        spreadsheet_file = "holder_spreadsheet_default.xlsx"
+        spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(spreadsheet_file)
+        ex.parseHolderExcel(str(spreadsheet_path))
+    elif container_type == "plate":
+        spreadsheet_file = "plate_spreadsheet_default.xlsx"
+        spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(spreadsheet_file)
+        ex.parseExcel(str(spreadsheet_path))
+
     ex.show()
     sys.exit(app.exec_())

@@ -19,6 +19,12 @@ def init_argparse() -> argparse.ArgumentParser:
         help="importer for the beamline (MX or LIX), default is MX",
         default="MX",
     )
+    parser.add_argument(
+        "--container-type",
+        dest="container_type",
+        help="container type to be imported",
+        default="holder",
+    )
     return parser
 
 
@@ -43,7 +49,7 @@ def main() -> None:
         elif args.beamline == "LIX":
             from lix_importer import start_app as start_lix_app
 
-            start_lix_app(config_path)
+            start_lix_app(config_path, container_type=args.container_type)
         else:
             raise NotImplementedError(f"Unrecognized beamline {args.beamline}")
     except Exception as e:
