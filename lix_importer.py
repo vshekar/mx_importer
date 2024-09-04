@@ -6,7 +6,7 @@ import sys
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -38,6 +38,11 @@ class Mode(Enum):
     AUTOMATED = "Automated"
 
 
+class ContainerType(Enum):
+    PLATE = "plate"
+    HOLDER = "holder"
+
+
 class ControlMain(QtWidgets.QMainWindow):
     def __init__(self, *args, config_path, **kwargs):
         self.config_path = config_path
@@ -50,8 +55,9 @@ class ControlMain(QtWidgets.QMainWindow):
             )
             raise e
         self.config = config
+        self._container_type: "Optional[ContainerType]" = None
         super().__init__(*args, **kwargs)
-        self.setWindowTitle(f"Import sample information @ LIX")
+        self.setWindowTitle("Import sample information @ LIX")
         self.tabView = QtWidgets.QTabWidget()
         self.setCentralWidget(self.tabView)
         self._createActions()
@@ -65,6 +71,15 @@ class ControlMain(QtWidgets.QMainWindow):
         self.well_names = "ABCDEFGH"
         # Default mode to start the application
         self._set_mode(Mode.MANUAL)
+
+    @property
+    def container_type(self):
+        return self._container_type
+
+    @container_type.setter
+    def container_type(self, value):
+        self._container_type = value
+        self._createMenuBar()
 
     def _createActions(self):
         # File menu actions
@@ -302,13 +317,20 @@ class ControlMain(QtWidgets.QMainWindow):
 
     def _createMenuBar(self):
         menuBar = self.menuBar()
+        if menuBar is None:
+            return
+        menuBar.clear()
         # Creating menus using a QMenu object
         fileMenu = QtWidgets.QMenu("&File", self)
         dataMenu = QtWidgets.QMenu("&Data Import", self)
-        sampleHolderMenu = QtWidgets.QMenu("&Sample Holder", self)
+        sampleHolderMenu = QtWidgets.QMenu("Sample &Holder", self)
+        samplePlateMenu = QtWidgets.QMenu("Sample &Plate", self)
         menuBar.addMenu(fileMenu)
         menuBar.addMenu(dataMenu)
-        menuBar.addMenu(sampleHolderMenu)
+        if self.container_type == ContainerType.HOLDER:
+            menuBar.addMenu(sampleHolderMenu)
+        elif self.container_type == ContainerType.PLATE:
+            menuBar.addMenu(samplePlateMenu)
         fileMenu.addActions(
             [
                 self.saveExcelAction,
@@ -327,8 +349,11 @@ class ControlMain(QtWidgets.QMainWindow):
         )
 
         sampleHolderMenu.addActions(
-            [self.addHolderAction, self.generateHolderQRCodeAction]
+            [
+                self.addHolderAction,
+            ]
         )
+        samplePlateMenu.addAction(self.generateHolderQRCodeAction)
 
         if self.config["admin_group"] in [
             grp.getgrgid(g).gr_name for g in os.getgroups()
@@ -358,14 +383,16 @@ def start_app(config_path, container_type="holder"):
     app = QtWidgets.QApplication(sys.argv)
     app.setWindowIcon(QIcon(str(Path.cwd() / Path("gui/assets/icon.png"))))
     ex = ControlMain(config_path=config_path)
-    if container_type == "holder":
+    if ContainerType(container_type) == ContainerType.HOLDER:
         spreadsheet_file = "holder_spreadsheet_default.xlsx"
         spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(spreadsheet_file)
         ex.parseHolderExcel(str(spreadsheet_path))
-    elif container_type == "plate":
+        ex.container_type = ContainerType.HOLDER
+    elif ContainerType(container_type) == ContainerType.PLATE:
         spreadsheet_file = "plate_spreadsheet_default.xlsx"
         spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(spreadsheet_file)
         ex.parseExcel(str(spreadsheet_path))
+        ex.container_type = ContainerType.PLATE
 
     ex.show()
     sys.exit(app.exec_())
