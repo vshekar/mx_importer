@@ -1,4 +1,6 @@
 import os
+import sys
+from pathlib import Path
 
 import requests
 from lixtools.mailin import make_barcode
@@ -23,7 +25,7 @@ class ManageHoldersDialog(QDialog):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("List Widget Dialog")
+        self.setWindowTitle("Manage holders")
 
         # Create the list widget
         self.list_widget = QListWidget()
@@ -75,8 +77,14 @@ class ManageHoldersDialog(QDialog):
             self.list_widget.addItem(text)
 
             # Add a new tab with the same text
-            new_tab = QWidget()
-            self.tab_widget.addTab(new_tab, text)
+            # new_tab = QWidget()
+            # self.tab_widget.addTab(new_tab, text)
+            ex = self.tab_widget.parent()
+            spreadsheet_file = "holder_spreadsheet_default.xlsx"
+            spreadsheet_path = Path(sys.argv[0]).resolve().parent / Path(
+                spreadsheet_file
+            )
+            ex.parseHolderExcel(str(spreadsheet_path), holder_name=text)
 
             self.item_input.clear()
         else:
@@ -191,6 +199,7 @@ class GenerateHolderQRCodeDialog(QDialog):
         # Plate ID
         self.plate_id_label = QLabel("Plate ID:")
         self.plate_id_input = QLineEdit(self)
+        self.plate_id_input.setMaxLength(2)
 
         self.ok_button = QPushButton("OK", self)
         self.cancel_button = QPushButton("Cancel", self)
@@ -223,12 +232,13 @@ class GenerateHolderQRCodeDialog(QDialog):
             and len(saf_id) == 6
             and proposal_id.isdigit()
             and saf_id.isdigit()
-            and self.validate_saf(saf_id)
+            and self.validate_saf(proposal_id, saf_id)
         ):
             dialog = QFileDialog()
-            if self.config.get("open_in_work_dir", True):
-                dialog.setDirectory(os.getcwd())
-            filename, _ = dialog.getOpenFileName(self, "QR Code")
+            # if self.config.get("open_in_work_dir", True):
+            dialog.setDirectory(os.getcwd())
+            # filename, _ = dialog.getSaveFileName(self, "QR Code")
+            filename = dialog.getExistingDirectory(self, "QR Code")
             if filename:
                 make_barcode(proposal_id, saf_id, plate_id, path=filename)
             self.accept()
@@ -239,10 +249,11 @@ class GenerateHolderQRCodeDialog(QDialog):
                 "Both Proposal ID and SAF ID must be exactly 6 digits.",
             )
 
-    def validate_saf(self, saf_id):
+    def validate_saf(self, proposal_id, saf_id):
         try:
-            resp = requests.get(f"https://api.nsls2.bnl.gov/v1/proposal/{saf_id}")
+            resp = requests.get(f"https://api.nsls2.bnl.gov/v1/proposal/{proposal_id}")
             resp.raise_for_status()
+            print(resp.json())
             for saf in resp.json()["proposal"]["safs"]:
                 if (
                     saf["saf_id"] == str(saf_id)
@@ -251,6 +262,7 @@ class GenerateHolderQRCodeDialog(QDialog):
                 ):
                     return True
         except Exception as e:
+            print(e)
             return False
         return False
 
