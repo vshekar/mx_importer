@@ -58,7 +58,7 @@ class ControlMain(QtWidgets.QMainWindow):
         self._container_type: "Optional[ContainerType]" = None
         super().__init__(*args, **kwargs)
         self.setWindowTitle("Import sample information @ LIX")
-        self.tabView = QtWidgets.QTabWidget()
+        self.tabView = QtWidgets.QTabWidget(self)
         self.setCentralWidget(self.tabView)
         self._createActions()
         self._createMenuBar()
@@ -190,11 +190,14 @@ class ControlMain(QtWidgets.QMainWindow):
             else:
                 raise Exception("Unrecognized input file type")
 
-    def parseHolderExcel(self, filename):
+    def parseHolderExcel(self, filename, holder_name=None):
         excel_file = pd.ExcelFile(filename)
         self.tables: Dict[str, LIXHolderTableWithCopy] = {}
         self.models = {}
-        self.tabView.clear()
+        if holder_name is None:
+            # Clear the tab when a holder name is not provided which means
+            # a new session is desired
+            self.tabView.clear()
         holder_index = 0
         for sheet_name in excel_file.sheet_names:
             data: "pd.DataFrame" = excel_file.parse(sheet_name)
@@ -218,11 +221,13 @@ class ControlMain(QtWidgets.QMainWindow):
                     start_index = index
                 else:
                     end_index = index
-                    self.addHolderTable(start_index, end_index, holder_index)
+                    self.addHolderTable(
+                        start_index, end_index, holder_index, holder_name
+                    )
                     holder_index += 1
                     start_index = index
             self.addHolderTable(
-                start_index, self._dataframe.index[-1] + 1, holder_index
+                start_index, self._dataframe.index[-1] + 1, holder_index, holder_name
             )
             break
 
@@ -233,6 +238,7 @@ class ControlMain(QtWidgets.QMainWindow):
             if holder_name is None
             else holder_name
         )
+        self._dataframe["holderName"].iloc[start_index] = holder_name
         model = LIXHolderPandasModel(
             filtered_data, holder_index, holder_name=holder_name
         )
