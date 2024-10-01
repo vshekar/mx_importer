@@ -181,9 +181,9 @@ class PuckPandasModel(BasePandasModel):
         for col in required_columns:
             self._dataframe[col] = self._dataframe[col].astype("string")
             if col != "samplename":
-                self._dataframe[col].str.replace(r"\s+", "", regex=True)
+                self._dataframe[col] = self._dataframe[col].str.replace(r"\s+", "", regex=True)
             else:
-                self._dataframe[col].str.replace(r"(\.|\s)+", "", regex=True)
+                self._dataframe[col] = self._dataframe[col].str.replace(r"(\.|\s)+", "", regex=True)
 
         if columns_absent:
             raise TypeError(
