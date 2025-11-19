@@ -19,6 +19,7 @@ from qtpy.QtGui import QColor, QIcon
 
 from gui.config import ConfigurationWindow
 from gui.custom_table import DewarTableWithCopy, TableWithCopy
+from gui.dialogs import ConfirmDialog
 from utils.db_lib import DBConnection
 from utils.pandas_model import DewarPandasModel, PuckPandasModel
 
@@ -179,8 +180,8 @@ class ControlMain(QtWidgets.QMainWindow):
         with open(file_path, "rb") as f:
             header = f.read(8)
 
-        xls_header = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
-        xlsx_header = b"\x50\x4B\x03\x04"
+        xls_header = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+        xlsx_header = b"\x50\x4b\x03\x04"
 
         if header[:8] == xls_header:
             return "xlrd"
@@ -201,8 +202,12 @@ class ControlMain(QtWidgets.QMainWindow):
             "position",
             "samplename",
             "model",
-            "sequence",
+            # "sequence",
             "proposalnum",
+            "oscrange",
+            "startangle",
+            "resolution",
+            "priority",
         ]
         if filename:
             engine = self.identify_excel_format(filename)
@@ -247,11 +252,16 @@ class ControlMain(QtWidgets.QMainWindow):
                     )
                 )
                 if header_correct:
-                    self.model = PuckPandasModel(data)
+                    self.model = PuckPandasModel(data, self.config)
                     self.model.setPuckLists(self.pucklists)
                     self.validateExcel()
                     self.tableView.setModel(self.model)
                     break
+                else:
+                    self.showModalMessage(
+                        "Error importing",
+                        f"Could not import excel file. Missing columns: {set(required_columns).difference(data.columns)}",
+                    )
             self.tableView.resizeColumnsToContents()
 
     def validateExcel(self):
@@ -284,66 +294,96 @@ class ControlMain(QtWidgets.QMainWindow):
                 "Error", f"Data not validated, will not upload.\nException: {e}"
             )
             return
+        beamline_id = self.config.get("beamline", "99id1").lower()
+        dbConnection = DBConnection(
+            beamline_id=beamline_id,
+            host=self.config.get(
+                "database_host", os.environ.get("MONGODB_HOST", "localhost")
+            ),
+            owner=self.owner,
+            api_url=self.config.get("nsls2_api"),
+            detector_name=self.config.get("detector_name"),
+        )
+        proposal_num = self.model._dataframe.loc[:, "proposalnum"][0]
+        path_options = dbConnection.get_visit_directories(proposal_num)
+        proposal_info = dbConnection.get_proposal_info(proposal_num)
+        pi_name = None
+        for users in proposal_info["proposal"]["users"]:
+            if users["is_pi"]:
+                pi_name = f"{users['first_name']} {users['last_name']}"
+                break
+        proposal_info_text = (
+            f"Proposal ID: {proposal_info['proposal']['proposal_id']}\n"
+            + f"Title: {proposal_info['proposal']['title']}\n"
+            + f"PI: {pi_name}"
+        )
+        confirm_dialog = ConfirmDialog(
+            "Select visit directory",
+            f"Setting visit directory for {proposal_info_text}",
+            None if not path_options else [str(path) for path in path_options],
+        )
+        result, selected_path = confirm_dialog.showDialog()
+        if result == QtWidgets.QDialog.Accepted:
+            print("Confirm button pressed")
+            if isinstance(self.model, PuckPandasModel):
+                self.progress_dialog = QtWidgets.QProgressDialog(
+                    "Uploading Puck data...",
+                    "Cancel",
+                    0,
+                    self.model.rowCount(),
+                    self,
+                )
+                # self.progress_dialog.setModal(True)
+                self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+                prevPuckName = None
+                puck_id = None
+                self.currentPucks = set()
+                self.progress_dialog.show()
+                self.progress_dialog.setValue(0)
+                time.sleep(
+                    0.25
+                )  # Dumb sleep because progress dialog doesn't initialize fast enough
+                for i, row in enumerate(self.model.rows()):
+                    print(f"Processing row {i}")
+                    self.progress_dialog.setValue(i + 1)
+                    if self.progress_dialog.wasCanceled():
+                        break
+                    # Check if puck exists, otherwise create one
+                    if row["puckname"] != prevPuckName:
+                        puck_id = dbConnection.getOrCreateContainerID(
+                            row["puckname"], 16, "16_pin_puck"
+                        )
+                        prevPuckName = row["puckname"]
 
-        if isinstance(self.model, PuckPandasModel):
-            beamline_id = self.config.get("beamline", "99id1").lower()
-            dbConnection = DBConnection(
-                beamline_id=beamline_id,
-                host=self.config.get(
-                    "database_host", os.environ.get("MONGODB_HOST", "localhost")
-                ),
-                owner=self.owner,
-            )
-            self.progress_dialog = QtWidgets.QProgressDialog(
-                "Uploading Puck data...",
-                "Cancel",
-                0,
-                self.model.rowCount(),
-                self,
-            )
-            # self.progress_dialog.setModal(True)
-            self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-            prevPuckName = None
-            puck_id = None
-            self.currentPucks = set()
-            self.progress_dialog.show()
-            self.progress_dialog.setValue(0)
-            time.sleep(
-                0.25
-            )  # Dumb sleep because progress dialog doesn't initialize fast enough
-            for i, row in enumerate(self.model.rows()):
-                print(f"Processing row {i}")
-                self.progress_dialog.setValue(i + 1)
-                if self.progress_dialog.wasCanceled():
-                    break
-                # Check if puck exists, otherwise create one
-                if row["puckname"] != prevPuckName:
-                    puck_id = dbConnection.getOrCreateContainerID(
-                        row["puckname"], 16, "16_pin_puck"
+                    # Create sample
+                    sampleName: str = row["samplename"]
+                    model = row["model"]
+                    # seq = row["sequence"]
+                    propNum = row["proposalnum"]
+                    sampleID = dbConnection.createSample(
+                        str(sampleName),
+                        "pin",
+                        model="nan" if pd.isna(model) else str(model),
+                        proposalID=propNum,
+                        container=puck_id,
+                        position=int(row["position"]),
                     )
-                    prevPuckName = row["puckname"]
+                    if puck_id not in self.currentPucks:
+                        dbConnection.emptyContainer(puck_id)
+                        self.currentPucks.add(puck_id)
+                    dbConnection.insertIntoContainer(
+                        puck_id, int(row["position"]) - 1, sampleID
+                    )
 
-                # Create sample
-                sampleName: str = row["samplename"]
-                model = row["model"]
-                seq = row["sequence"]
-                propNum = row["proposalnum"]
-                sampleID = dbConnection.createSample(
-                    str(sampleName),
-                    "pin",
-                    model=None if pd.isna(model) else str(model),
-                    sequence=None if pd.isna(seq) else str(seq),
-                    proposalID=propNum,
-                    container=puck_id,
+                    if "priority" in row and int(float(row["priority"])) != -1:
+                        dbConnection.addRequest(sampleID, row, selected_path)
+            else:
+                self.showModalMessage(
+                    "Error", "Invalid data, will not upload to database"
                 )
-                if puck_id not in self.currentPucks:
-                    dbConnection.emptyContainer(puck_id)
-                    self.currentPucks.add(puck_id)
-                dbConnection.insertIntoContainer(
-                    puck_id, int(row["position"]) - 1, sampleID
-                )
+
         else:
-            self.showModalMessage("Error", "Invalid data, will not upload to database")
+            print("Cancel button pressed")
 
     def _createMenuBar(self):
         menuBar = self.menuBar()
