@@ -28,11 +28,11 @@ def main() -> None:
             f"Configuration file {config_path} does not exist, please provide a valid config path"
         )
         return
-    
+
     try:
         start_app(config_path)
     except Exception as e:
-        print(f'Exception occurred: {e}')
+        print(f"Exception occurred: {e}")
 
 
 if __name__ == "__main__":
