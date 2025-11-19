@@ -1,10 +1,13 @@
 from typing import Dict, Any
-from utils.devices import create_dewar_class, Dewar
+from utils.devices import create_dewar_class
 import argparse
 import yaml
 from pathlib import Path
-from import_pucks import start_app
+
+# from import_pucks import start_app
 import traceback
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
 
 def init_argparse() -> argparse.ArgumentParser:
@@ -23,7 +26,7 @@ def init_argparse() -> argparse.ArgumentParser:
 def parse_config(config_path: Path):
     with config_path.open("r") as f:
         config = yaml.safe_load(f)
-    if not all(key in config['dewar'] for key in ["suffix", "sectors", "pucks"]):
+    if not all(key in config["dewar"] for key in ["suffix", "sectors", "pucks"]):
         return None
     return config
 
@@ -43,22 +46,43 @@ def main():
 
     print("Starting script")
     config: "dict[str, Any] | None" = parse_config(config_path)
-    if not config:
+    if config:
+        logfile_path = Path(config["log_path"]) / Path("service.log")
+        logfile_path.parent.mkdir(parents=True, exist_ok=True)
+        handler = TimedRotatingFileHandler(
+            logfile_path, when="midnight", interval=1, backupCount=30
+        )
+        handler.suffix = "%Y-%m-%d.log"
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        handler.setFormatter(formatter)
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(handler)
+        root_logger.addHandler(stream_handler)
+
+        pucklist_path = Path(config["puck_list_path"])
+    else:
         print("Error parsing config file, missing suffix, sector or pucks")
         exit()
     try:
         Dewar = create_dewar_class(config)
-        dewar = Dewar(config['dewar']["suffix"], 
-                      name="dewar", 
-                      beamline_id=config["dewar"]["beamline"], 
-                      db_host=config["dewar"]["db_host"],
-                      )
+        dewar = Dewar(
+            config["dewar"]["suffix"],
+            name="dewar",
+            beamline_id=config["dewar"]["beamline"],
+            db_host=config["dewar"]["db_host"],
+            pucklist_path=pucklist_path,
+        )
     except Exception as e:
-        print(f"Exception: {e}")
-        print(traceback.print_exc())
+        root_logger.info(f"Exception: {e}")
+        root_logger.exception("Exception in service")
 
     while True:
-            pass
+        pass
 
 
 if __name__ == "__main__":

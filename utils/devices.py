@@ -4,6 +4,10 @@ from ophyd import Component as Cpt
 from utils.db_lib import DBConnection
 from itertools import product
 from typing import Any
+import time
+import logging
+import pandas as pd
+from openpyxl import load_workbook
 
 
 class Puck(Device):
@@ -26,60 +30,106 @@ class Dewar(Device):
         }
     )
     num_sectors = 8
+    refresh_tree = Cpt(EpicsSignal, "{Comm}live_q_change_flag", name="refresh_tree")
 
-    def __init__(self, *args, beamline_id='amx', db_host='localhost', owner='mx', **kwargs):
+    def __init__(
+        self,
+        *args,
+        beamline_id="amx",
+        db_host="localhost",
+        owner="mx",
+        pucklist_path="",
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
-        self.db_connection = DBConnection(beamline_id=beamline_id, host=db_host, owner=owner)
-        
-        for i in range(1, self.num_sectors+1):
+        self.logger = logging.getLogger()
+
+        self.db_connection = DBConnection(
+            beamline_id=beamline_id, host=db_host, owner=owner
+        )
+        self.puck_list_path = pucklist_path
+        for i in range(1, self.num_sectors + 1):
             sector: Sector = getattr(self.sectors, f"sector_{i}")
             sector.A.barcode.subscribe(self.handle_barcode)
             sector.B.barcode.subscribe(self.handle_barcode)
             sector.C.barcode.subscribe(self.handle_barcode)
-    
+
     def handle_barcode(self, value, old_value, **kwargs):
-        location = kwargs['obj'].parent.name.split("_")[-1]
-        sector = kwargs['obj'].parent.name.split("_")[-2]
+        location = kwargs["obj"].parent.name.split("_")[-1]
+        sector = kwargs["obj"].parent.name.split("_")[-2]
         puck_pos = self.pos_to_int(sector, location)
-        if isinstance(value, str) and value != '':
-            print(f"Loading puck {value} at pos {puck_pos}")
+        if isinstance(value, str) and value != "":
+            self.logger.info(f"Loading puck {value} at pos {puck_pos}")
             self.insertIntoContainer(value, puck_pos)
 
         elif value == "" and isinstance(old_value, str) and old_value != "":
-            print(f"Unloading puck {old_value} at pos {puck_pos}")
+            self.logger.info(f"Unloading puck {old_value} at pos {puck_pos}")
             self.removeFromContainer(old_value, puck_pos)
 
     def pos_to_int(self, sector, location):
         sector = int(sector)
         location = ord(location) - 65
-        return (sector-1)*3 + location
+        return (sector - 1) * 3 + location
 
     def remove_newline(self, barcode):
         if barcode.endswith("\\n"):
             barcode = barcode.split("\\n")[0]
+            """
+            try:
+                if self.puck_list_path:
+                    df = pd.read_excel(self.puck_list_path, engine="openpyxl", sheet_name="white_list", header=None)
+                    if not df[0].isin([barcode.strip()]).any():
+                        df = df.append({0: barcode.strip()}, ignore_index=True)
+
+
+                    excel_writer = pd.ExcelWriter(self.puck_list_path, engine='openpyxl')
+                    workbook = load_workbook(self.puck_list_path)
+                    excel_writer.book = workbook
+                    df.to_excel(excel_writer, sheet_name=sheet_name, index=False)
+                    
+                    # Save the workbook
+                    excel_writer.save()
+            except Exception as e:
+                self.logger.error(f"Could not write to file: {e}")
+            """
         barcode = str(barcode).strip()
         return barcode
 
     def insertIntoContainer(self, barcode, position):
         barcode = self.remove_newline(barcode)
-        print(f"Inserting {barcode} into {position}")
+        self.logger.info(f"Inserting {barcode} into {position}")
         dewarID = self.db_connection.primary_dewar_uid
-        puckID = self.db_connection.getContainer(filter={"name": barcode}).get('uid')
+        puck_data = self.db_connection.getContainer(filter={"name": barcode})
+        puckID = puck_data.get("uid")
+        puck_modified_time = puck_data.get("modified_time")
+        puck_created_time = puck_data.get("time")
+        if not puck_modified_time:
+            puck_modified_time = puck_created_time
         if puckID:
-            self.db_connection.insertIntoContainer(dewarID, position, puckID)
+            if time.time() - puck_modified_time < 604_800:
+                # Checking if older than 1 week
+                self.db_connection.insertIntoContainer(dewarID, position, puckID)
+                self.refresh_tree.put(1)
+            else:
+                self.logger.error(
+                    f"Puck information for {barcode} in database is older than 1 week, not adding"
+                )
         else:
-            print(f"Puck ID not found for {barcode}")
+            self.logger.error(f"Puck ID not found for {barcode}")
 
     def removeFromContainer(self, barcode, position):
         barcode = self.remove_newline(barcode)
-        print(f"Removing {barcode} from {position}")
+        self.logger.info(f"Removing {barcode} from {position}")
         dewarID = self.db_connection.primary_dewar_uid
-        puckID = self.db_connection.getContainer(filter={"name": barcode})['uid']
-        result = self.db_connection.removeFromContainer(dewarID, position, puckID)
+        puckID = self.db_connection.getContainer(filter={"name": barcode}).get("uid")
+        result = None
+        if puckID:
+            result = self.db_connection.removeFromContainer(dewarID, position, puckID)
+            self.refresh_tree.put(1)
         if result:
-            print(f"Successfully removed {barcode} from {position}")
+            self.logger.info(f"Successfully removed {barcode} from {position}")
         else:
-            print(f"Error in removing {barcode} from {position}")
+            self.logger.error(f"Error in removing {barcode} from {position}")
 
 
 def create_dewar_class(config: "dict[str, Any]"):
