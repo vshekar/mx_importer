@@ -62,6 +62,14 @@ class BasePandasModel(QAbstractTableModel):
 
     def setData(self, index: QModelIndex, value: typing.Any, role: int = ...) -> bool:
         if role == Qt.ItemDataRole.EditRole:
+            column_name = self._dataframe.columns[index.column()]
+
+            # Check if the column has a numeric dtype
+            if (
+                pd.api.types.is_numeric_dtype(self._dataframe[column_name].dtype)
+                and value == ""
+            ):
+                value = np.nan
             self._dataframe.iloc[index.row(), index.column()] = value
             self.dataChanged.emit(index, index)
             return True
@@ -105,6 +113,10 @@ class BasePandasModel(QAbstractTableModel):
 class PuckPandasModel(BasePandasModel):
     """A model to interface a Qt view with pandas dataframe"""
 
+    def __init__(self, dataframe, config):
+        self.config = config
+        super().__init__(dataframe)
+
     def setPuckLists(self, pucklist):
         self.puckList = pucklist
 
@@ -142,6 +154,12 @@ class PuckPandasModel(BasePandasModel):
 
         if not self._checkDuplicatePuckPos(self._dataframe):
             raise TypeError("Duplicate Puck name and position combinations found")
+
+        if not self._checkResolution(self._dataframe):
+            raise TypeError(
+                f"Resolutions found outside of ({self.config['resolution_range']['min']}, {self.config['resolution_range']['max']})."
+                "Automatically fixed, and highlighted in yellow."
+            )
         self.validData = True
 
     def preprocessData(self) -> None:
@@ -151,8 +169,12 @@ class PuckPandasModel(BasePandasModel):
             "position",
             "samplename",
             "model",
-            "sequence",
+            # "sequence",
             "proposalnum",
+            "oscrange",
+            "startangle",
+            "resolution",
+            "priority",
         ]
         required_columns = set(required_columns_list)
         self._dataframe.columns = self._dataframe.columns.str.lower()
@@ -166,24 +188,46 @@ class PuckPandasModel(BasePandasModel):
             for col in columns_absent:
                 self._dataframe.loc[:, col] = ""
 
-        # Set data types for various columns. By this point all required columns should be present
-        self._dataframe.loc[:, "position"] = pd.to_numeric(
-            self._dataframe["position"], errors="coerce"
-        ).astype("Int64")
-        self._dataframe.loc[:, "proposalnum"] = pd.to_numeric(
-            self._dataframe["proposalnum"], errors="coerce"
-        ).astype("Int64")
-
-        self._dataframe = self._dataframe.astype({"sequence": "str", "model": "str"})
+        self._dataframe = self._dataframe.astype(
+            {
+                # "sequence": "str",
+                "model": "str"
+            }
+        )
         self._dataframe = self._dataframe[required_columns_list]
 
         # Remove all whitespaces from string columns
         for col in required_columns:
             self._dataframe[col] = self._dataframe[col].astype("string")
             if col != "samplename":
-                self._dataframe[col] = self._dataframe[col].str.replace(r"\s+", "", regex=True)
+                self._dataframe[col] = self._dataframe[col].str.replace(
+                    r"\s+", "", regex=True
+                )
             else:
-                self._dataframe[col] = self._dataframe[col].str.replace(r"(\.|\s)+", "", regex=True)
+                self._dataframe[col] = self._dataframe[col].str.replace(
+                    r"(\.|\s)+", "", regex=True
+                )
+        # Set data types for various columns. By this point all required columns should be present
+
+        # Converting position and proposal num to int so that puckname and positions can be sorted
+        self._dataframe["position"] = (
+            self._dataframe["position"].astype("float").astype("int")
+        )
+        self._dataframe["proposalnum"] = (
+            self._dataframe["proposalnum"].astype("float").astype("int")
+        )
+
+        self._dataframe = self._dataframe.sort_values(
+            by=["puckname", "position"]
+        ).reset_index(drop=True)
+        self._dataframe["position"] = self._dataframe["position"].astype("string")
+
+        # Checking if priority is filled, if not fill it with a -1
+        self._fillDefaults(self._dataframe, "priority")
+        # Checking if osc, start_angle and resolution are filled, otherwise put default values
+        self._fillDefaults(self._dataframe, "oscrange")
+        self._fillDefaults(self._dataframe, "startangle")
+        self._fillDefaults(self._dataframe, "resolution")
 
         if columns_absent:
             raise TypeError(
@@ -191,6 +235,14 @@ class PuckPandasModel(BasePandasModel):
                 " If data is present in the excel file, make sure column names are correct and import the file again."
                 " Otherwise enter values into the empty column generated by the puck importer."
             )
+
+    def _fillDefaults(self, dataframe: pd.DataFrame, column_name):
+        self._dataframe[column_name] = pd.to_numeric(
+            self._dataframe[column_name], errors="coerce"
+        )
+        self._dataframe[column_name] = self._dataframe[column_name].fillna(
+            self.config["column_defaults"][column_name]
+        )
 
     def _checkProposalNumbers(self, data: pd.DataFrame) -> bool:
         proposalNumCol = "proposalnum"
@@ -262,6 +314,27 @@ class PuckPandasModel(BasePandasModel):
             self._changeCellColors(
                 column_index,
                 non_matching_rows.index,
+                color=QColor(Qt.GlobalColor.yellow),
+            )
+            return False
+        return True
+
+    def _checkResolution(self, data: pd.DataFrame) -> bool:
+        data["resolution"] = pd.to_numeric(data["resolution"], errors="coerce")
+        min_resolution, max_resolution = (
+            self.config["resolution_range"]["min"],
+            self.config["resolution_range"]["max"],
+        )
+        original_resolution = self._dataframe["resolution"].copy()
+        data["resolution"] = data["resolution"].clip(
+            lower=min_resolution, upper=max_resolution
+        )
+        changed_rows = self._dataframe["resolution"] != original_resolution
+        if len(self._dataframe[changed_rows]):
+            column_index = data.columns.get_loc("resolution")
+            self._changeCellColors(
+                column_index,
+                self._dataframe[changed_rows].index,
                 color=QColor(Qt.GlobalColor.yellow),
             )
             return False
