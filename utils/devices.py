@@ -8,6 +8,7 @@ import time
 import logging
 import pandas as pd
 from openpyxl import load_workbook
+from datetime import datetime, timedelta
 
 
 class Puck(Device):
@@ -106,13 +107,13 @@ class Dewar(Device):
         if not puck_modified_time:
             puck_modified_time = puck_created_time
         if puckID:
-            if time.time() - puck_modified_time < 604_800:
-                # Checking if older than 1 week
+            if datetime.now() - datetime.fromtimestamp(puck_modified_time) < timedelta(days=21):
+                # Checking if older than a certain number of days
                 self.db_connection.insertIntoContainer(dewarID, position, puckID)
                 self.refresh_tree.put(1)
             else:
                 self.logger.error(
-                    f"Puck information for {barcode} in database is older than 1 week, not adding"
+                    f"Puck information for {barcode} in database is older than 21 days, not adding"
                 )
         else:
             self.logger.error(f"Puck ID not found for {barcode}")
