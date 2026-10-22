@@ -160,6 +160,12 @@ class PuckPandasModel(BasePandasModel):
                 f"Resolutions found outside of ({self.config['resolution_range']['min']}, {self.config['resolution_range']['max']})."
                 "Automatically fixed, and highlighted in yellow."
             )
+
+        if not self._checkSampleNumbers(self._dataframe):
+            raise TypeError(
+                "Valid pin positions are between 1-16, found invalid pin positions"
+            )
+        
         self.validData = True
 
     def preprocessData(self) -> None:
@@ -318,6 +324,9 @@ class PuckPandasModel(BasePandasModel):
             )
             return False
         return True
+
+    def _checkSampleNumbers(self, data: pd.DataFrame) -> bool:
+        return data["position"].astype(int).between(1,16).any()
 
     def _checkResolution(self, data: pd.DataFrame) -> bool:
         data["resolution"] = pd.to_numeric(data["resolution"], errors="coerce")
