@@ -217,7 +217,7 @@ class ControlMain(QtWidgets.QMainWindow):
                 if data.empty:
                     continue
                 # Check if any row besides header row contains "puckname"
-                rows = (data.applymap(lambda x: str(x).lower() == "puckname")).any(
+                rows = (data.map(lambda x: str(x).lower() == "puckname")).any(
                     axis=1
                 )
 

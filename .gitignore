@@ -157,4 +157,6 @@ cython_debug/
 start_importer_amx.sh
 start_importer_fmx.sh
 
-.DS_Store
+.DS_Store# pixi environments
+.pixi/*
+!.pixi/config.toml
